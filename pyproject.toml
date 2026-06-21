@@ -11,4 +11,5 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
     "huggingface-hub>=0.34.0",
+    "openai>=1.0.0",
 ]
