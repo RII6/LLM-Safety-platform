@@ -5,8 +5,10 @@ import time
 
 from src.scanner import Model, pick_device, empty_cache
 from src.scanner.modules import safety_margin, refusal_direction, verdict, obfuscation, sampling_stability
+
 from src.scanner.modules.obfuscation import ObfuscationConfig
 from src.scanner.modules.sampling_stability import SamplingStabilityConfig
+from src.scanner.modules.prompt_injection import PromptInjectionConfig   # ← Новый импорт
 
 
 def load(path, n=0):
@@ -20,7 +22,9 @@ ap.add_argument("--sample", type=int, default=0, help="per-class prompt cap for 
 ap.add_argument("--device", default=None, help="cuda / mps / cpu (default: auto-detect)")
 ap.add_argument("--obfuscation", action="store_true", help="run obfuscation attack battery (slow: ~7x more model calls)")
 ap.add_argument("--sampling", action="store_true", help="run sampling stability analysis (free: derived from safety_margin logits)")
+ap.add_argument("--injection", action="store_true", help="run prompt injection detection (one + multi-turn)")  # ← Новый флаг
 ap.add_argument("--config", default="configs/general.yaml", help="path to YAML config (default: configs/general.yaml)")
+
 args = ap.parse_args()
 
 device = args.device or pick_device()
@@ -66,6 +70,14 @@ for ckpt in CHECKPOINTS:
         obf_result = obfuscation.run(model, harmful, config=obf_cfg)
         print(f"  obfuscation done in {time.time() - t0:.1f}s", flush=True)
         print("[obfuscation]       ", json.dumps(obf_result["summary"], indent=2), flush=True)
+
+    if args.injection:
+        inj_cfg = PromptInjectionConfig.from_yaml(args.config)
+        t0 = time.time()
+        inj_result = prompt_injection.run(model, harmful, config=inj_cfg)  # ← Запуск
+        print(f"  prompt_injection done in {time.time() - t0:.1f}s", flush=True)
+        print("[prompt_injection]  ", json.dumps(inj_result["summary"], indent=2), flush=True)
+
     print(flush=True)
 
     del model
