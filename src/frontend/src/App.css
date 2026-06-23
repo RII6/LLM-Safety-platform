@@ -284,3 +284,52 @@ main {
 }
 .fields b { color: var(--text); }
 .meta { color: var(--muted); font-size: 0.78rem; margin-top: 24px; text-align: center; }
+
+.dropdown-container {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background-color: #ffffff;
+  overflow: hidden;
+  max-width: 500px; /* Можно настроить под твой интерфейс */
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between; /* Выталкивает стрелочку максимально вправо */
+  align-items: center;
+  padding: 14px 20px;
+  cursor: pointer;
+  user-select: none;
+  background-color: #f8f9fa;
+  transition: background-color 0.2s ease;
+}
+
+.dropdown-header:hover {
+  background-color: #f1f3f5;
+}
+
+.dropdown-title {
+  font-weight: 600;
+  color: #212529;
+}
+
+/* Стили для стрелочки и её плавной анимации */
+.dropdown-arrow {
+  font-size: 12px;
+  color: #6c757d;
+  transition: transform 0.2s ease; /* Плавный поворот */
+}
+
+/* Когда меню открыто, поворачиваем стрелочку на 180 градусов (она станет смотреть вверх) */
+.dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.dropdown-content {
+  padding: 16px 20px;
+  border-top: 1px solid #e0e0e0;
+  color: #495057;
+  line-height: 1.5;
+  background-color: #ffffff;
+}
