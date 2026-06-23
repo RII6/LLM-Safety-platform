@@ -88,7 +88,6 @@ main {
   padding-bottom: 14px;
 }
 
-/* Список модулей */
 .scan-modules-list {
   display: flex;
   flex-direction: column;
@@ -159,7 +158,6 @@ main {
   border: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-/* Блок ввода */
 .target-repo-input {
   border-top: 1px solid var(--border);
   padding-top: 24px;
@@ -208,7 +206,6 @@ main {
 #scan-btn:disabled { opacity: 0.5; cursor: default; }
 .hint { color: var(--muted); font-size: 0.82rem; margin: 12px 2px 0; }
 
-/* Результаты и логгер */
 .status {
   margin-top: 24px;
   padding: 16px;
@@ -283,6 +280,14 @@ main {
   color: var(--muted);
 }
 .fields b { color: var(--text); }
+
+.fields b.status-danger {
+  color: var(--red);
+}
+.fields b.status-success {
+  color: var(--green);
+}
+
 .meta { color: var(--muted); font-size: 0.78rem; margin-top: 24px; text-align: center; }
 
 .dropdown-container {
@@ -291,12 +296,12 @@ main {
   margin-bottom: 12px;
   background-color: #ffffff;
   overflow: hidden;
-  max-width: 500px; /* Можно настроить под твой интерфейс */
+  max-width: 500px;
 }
 
 .dropdown-header {
   display: flex;
-  justify-content: space-between; /* Выталкивает стрелочку максимально вправо */
+  justify-content: space-between;
   align-items: center;
   padding: 14px 20px;
   cursor: pointer;
@@ -314,14 +319,12 @@ main {
   color: #212529;
 }
 
-/* Стили для стрелочки и её плавной анимации */
 .dropdown-arrow {
   font-size: 12px;
   color: #6c757d;
-  transition: transform 0.2s ease; /* Плавный поворот */
+  transition: transform 0.2s ease;
 }
 
-/* Когда меню открыто, поворачиваем стрелочку на 180 градусов (она станет смотреть вверх) */
 .dropdown-arrow.open {
   transform: rotate(180deg);
 }

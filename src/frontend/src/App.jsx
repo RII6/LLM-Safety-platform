@@ -15,7 +15,7 @@ function App() {
 
   // Состояния для чекбоксов выбора видов безопасности
   const [scanGeneral, setScanGeneral] = useState(true);
-  const [scanInjection, setScanInjection] = useState(false); // по умолчанию выключен, пользователь может включить
+  const [scanInjection, setScanInjection] = useState(false);
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -263,7 +263,7 @@ function App() {
 
           {result && (
               <section id="result">
-                <div className={`verdict ${result.verdict.code}`}>
+                <div className={`verdict ${result.verdict.code === 'danger' ? 'do_not_deploy' : result.verdict.code}`}>
                   <div className="repo">
                     {result.repo}
                     {result.from_cache && " · cached"}
@@ -280,9 +280,24 @@ function App() {
                       <p className="what">{m.what}</p>
                       <p className="read">{m.read}</p>
                       <div className="fields">
-                        {Object.entries(m.fields).map(([key, value]) => (
-                            <span key={key}>{key} <b>{value}</b></span>
-                        ))}
+                        {Object.entries(m.fields).map(([key, value]) => {
+                          const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                          const lowerVal = valStr.toLowerCase();
+
+                          // Назначаем класс цвета в зависимости от критичности статуса
+                          let highlightClass = "";
+                          if (lowerVal === "high" || lowerVal === "failed" || lowerVal === "1") {
+                            highlightClass = "status-danger";
+                          } else if (lowerVal === "low" || lowerVal === "passed" || lowerVal === "false" || lowerVal === "blocked") {
+                            highlightClass = "status-success";
+                          }
+
+                          return (
+                              <span key={key}>
+                              {key}: <b className={highlightClass}>{valStr}</b>
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                 ))}
