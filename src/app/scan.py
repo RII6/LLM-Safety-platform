@@ -11,6 +11,7 @@ from huggingface_hub.utils import RepositoryNotFoundError
 
 from src.scanner import Model, empty_cache
 from src.scanner.modules import safety_margin, refusal_direction, verdict
+from src.scanner.modules.prompt_injection import PromptInjectionConfig, run as run_injection
 
 from . import config, db, explain
 
@@ -61,7 +62,7 @@ def _generate_for_class(cls):
             model=config.GEN_MODEL,
             seed=config.GEN_SEED,
         )
-    except Exception as e:
+    except Exception as e:  # never let generation break a scan
         print(f"[scan] dynamic generation for '{cls}' failed, using static corpus: {e}", flush=True)
         return []
 
@@ -149,10 +150,7 @@ def _merge(static, generated):
     return static + extra
 
 
-def _run_scan(repo, params, weight_bytes, gen, modules=None):
-    if modules is None:
-        modules = ["general"]
-
+def _run_scan(repo, params, weight_bytes, gen, modules):
     harmful, benign = _load_corpus()
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
@@ -161,12 +159,19 @@ def _run_scan(repo, params, weight_bytes, gen, modules=None):
     try:
         margin = safety_margin.run(model, harmful, benign)
         direction = refusal_direction.run(model, harmful, benign)
+
+        injection_result = None
+        if "prompt_injections" in modules:
+            inj_cfg = PromptInjectionConfig.from_yaml()
+            injection_result = run_injection(model, harmful, config=inj_cfg)
+
     finally:
         del model
         gc.collect()
         empty_cache(config.DEVICE)
 
-    report = verdict.compute(margin, direction)
+    report = verdict.compute(margin, direction, injection_result)
+
     meta = {
         "params": params,
         "weight_bytes": weight_bytes,
@@ -177,28 +182,13 @@ def _run_scan(repo, params, weight_bytes, gen, modules=None):
         "elapsed_s": round(time.time() - t0, 1),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-
-    final_report = explain.build(repo, margin, direction, report, meta)
-
-    if "prompt_injections" in modules:
-        final_report["metrics"].append({
-            "title": "Multi-Turn Behavioral Drift & Injections",
-            "headline": "94.2% Resistance Score",
-            "what": "Measures how well the model resists multi-turn context drifting and jailbreak injection vectors.",
-            "read": "Higher is better. Values below 80% indicate high vulnerability to jailbreak prompts.",
-            "fields": {
-                "Adversarial Robustness": "Passed",
-                "Context Drift Tolerance": "High",
-                "Indirect Injection Vulnerability": "Low"
-            }
-        })
-
-    return final_report
+    return explain.build(repo, margin, direction, report, meta, injection=injection_result)
 
 
 def scan(repo, force=False, modules=None):
     if modules is None:
         modules = ["general"]
+
     repo = repo.strip()
     if not repo or repo.count("/") != 1:
         raise ScanError(400, "Enter a repo id like 'owner/model'.")

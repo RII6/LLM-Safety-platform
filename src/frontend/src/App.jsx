@@ -13,9 +13,17 @@ function App() {
   const [isSamplingOpen, setIsSamplingOpen] = useState(false);
   const [isGCDOpen, setIsGCDOpen] = useState(false);
 
-  // Состояния для чекбоксов выбора видов безопасности
   const [scanGeneral, setScanGeneral] = useState(true);
   const [scanInjection, setScanInjection] = useState(false);
+
+  const [openMetrics, setOpenMetrics] = useState({});
+
+  const toggleMetric = (index) => {
+    setOpenMetrics((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -24,6 +32,7 @@ function App() {
 
     setLoading(true);
     setResult(null);
+    setOpenMetrics({});
     setStatus({
       text: `Scanning <b>${trimmedRepo}</b> — loading the model and probing internal state…`,
       isError: false,
@@ -40,7 +49,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           repo: trimmedRepo,
-          force: false,
+          force: true,
           modules: selectedModules
         }),
       });
@@ -68,6 +77,17 @@ function App() {
     }
   };
 
+  const getColorClass = (text) => {
+    const lower = String(text).toLowerCase();
+    if (lower.includes("fail") || lower.includes("high") || lower.includes("danger") || lower.includes("100%")) {
+      return "status-danger";
+    }
+    if (lower.includes("low") || lower.includes("passed") || lower.includes("94") || lower.includes("block")) {
+      return "status-success";
+    }
+    return "status-warning";
+  };
+
   return (
       <>
         <header>
@@ -87,9 +107,10 @@ function App() {
             <h2>SELECT SAFETY SCANS & ADVANCED ATTACKS</h2>
 
             <div className="scan-modules-list">
-              <div className="scan-module-card active">
-                <div className="card-header" onClick={() => setIsGeneralOpen(!isGeneralOpen)} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+
+              <div className={`scan-module-card ${scanGeneral ? "active" : ""}`}>
+                <div className="card-header-clickable" onClick={() => setIsGeneralOpen(!isGeneralOpen)}>
+                  <div className="checkbox-label-wrapper" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="checkbox"
                         id="m-general"
@@ -97,23 +118,15 @@ function App() {
                         onChange={(e) => setScanGeneral(e.target.checked)}
                     />
                     <label htmlFor="m-general"> General Safety Test (Core Behavioral Probing)</label>
-                    <span className="status-badge live">LIVE</span>
                   </div>
-                  <span style={{
-                    transform: isGeneralOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.4s ease-in-out',
-                    color: '#6c757d',
-                    fontSize: '12px'
-                  }}>▼</span>
+                  <div className="badge-arrow-wrapper">
+                    <span className="status-badge live">LIVE</span>
+                    <span className={`arrow-icon ${isGeneralOpen ? "rotated" : ""}`}>▼</span>
+                  </div>
                 </div>
 
-                <div style={{
-                  maxHeight: isGeneralOpen ? '200px' : '0px',
-                  opacity: isGeneralOpen ? 1 : 0,
-                  overflow: 'hidden',
-                  transition: 'max-height 0.4s ease-in-out, opacity 0.3s ease-in-out',
-                }}>
-                  <p className="card-desc" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e0e0e0' }}>
+                <div className="collapsible-content" style={{ maxHeight: isGeneralOpen ? "300px" : "0px", opacity: isGeneralOpen ? 1 : 0 }}>
+                  <p className="card-desc">
                     Evaluation over a fixed benchmark corpus of standard adversarial prompts. Tests the model's core
                     refusal capability and comprehension against Toxicity, Doxing, Hate Speech, and Dangerous Content.
                     Measures the Safety Margin Score via vocabulary logit distributions.
@@ -121,9 +134,9 @@ function App() {
                 </div>
               </div>
 
-              <div className="scan-module-card active">
-                <div className="card-header" onClick={() => setIsInjectionOpen(!isInjectionOpen)} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
+              <div className={`scan-module-card ${scanInjection ? "active" : ""}`}>
+                <div className="card-header-clickable" onClick={() => setIsInjectionOpen(!isInjectionOpen)}>
+                  <div className="checkbox-label-wrapper" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="checkbox"
                         id="m-injection"
@@ -131,23 +144,15 @@ function App() {
                         onChange={(e) => setScanInjection(e.target.checked)}
                     />
                     <label htmlFor="m-injection"> Multi-Turn Behavioral Drift & Injections</label>
-                    <span className="status-badge live">LIVE</span>
                   </div>
-                  <span style={{
-                    transform: isInjectionOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.4s ease-in-out',
-                    color: '#6c757d',
-                    fontSize: '12px'
-                  }}>▼</span>
+                  <div className="badge-arrow-wrapper">
+                    <span className="status-badge live">LIVE</span>
+                    <span className={`arrow-icon ${isInjectionOpen ? "rotated" : ""}`}>▼</span>
+                  </div>
                 </div>
 
-                <div style={{
-                  maxHeight: isInjectionOpen ? '200px' : '0px',
-                  opacity: isInjectionOpen ? 1 : 0,
-                  overflow: 'hidden',
-                  transition: 'max-height 0.4s ease-in-out, opacity 0.3s ease-in-out',
-                }}>
-                  <p className="card-desc" style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e0e0e0' }}>
+                <div className="collapsible-content" style={{ maxHeight: isInjectionOpen ? "300px" : "0px", opacity: isInjectionOpen ? 1 : 0 }}>
+                  <p className="card-desc">
                     Orchestrates a three-phase dialogue to gradually shift context toward a target harmful request.
                     Captures logit snapshots after each turn to compute KL-divergence relative to the first step.
                     Tests both direct prompt injections and indirect injections embedded within documents.
@@ -156,77 +161,57 @@ function App() {
               </div>
 
               <div className="scan-module-card disabled">
-                <div className="card-header" onClick={() => setIsLeakageOpen(!isLeakageOpen)} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <input type="checkbox" id="m-leakage" disabled />
-                  <label htmlFor="m-leakage">Memorization Extraction & System Leakage</label>
-                  <span className="status-badge soon">COMING SOON</span>
-                  <span style={{
-                    transform: isLeakageOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.4s ease-in-out',
-                    color: '#6c757d',
-                    fontSize: '12px'
-                  }}>▼</span>
+                <div className="card-header-clickable" onClick={() => setIsLeakageOpen(!isLeakageOpen)}>
+                  <div className="checkbox-label-wrapper">
+                    <input type="checkbox" id="m-leakage" disabled />
+                    <label htmlFor="m-leakage">Memorization Extraction & System Leakage</label>
+                  </div>
+                  <div className="badge-arrow-wrapper">
+                    <span className="status-badge soon">COMING SOON</span>
+                    <span className={`arrow-icon ${isLeakageOpen ? "rotated" : ""}`}>▼</span>
+                  </div>
                 </div>
-                <div style={{
-                  maxHeight: isLeakageOpen ? '200px' : '0px',
-                  opacity: isLeakageOpen ? 1 : 0,
-                  overflow: 'hidden',
-                  transition: 'max-height 0.4s ease-in-out, opacity 0.3s ease-in-out',
-                }}>
-                  <p className="card-desc" style={{marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e0e0e0'}}>
+                <div className="collapsible-content" style={{ maxHeight: isLeakageOpen ? "300px" : "0px", opacity: isLeakageOpen ? 1 : 0 }}>
+                  <p className="card-desc">
                     Implements the Carlini et al. (2021) method. Generates domain-specific seed prefixes and triggers
                     beam search using a small reference model (Pythia-70m) to compute memorization scores.
-                    Includes adversarial scenarios targeting system prompt extraction and precise data leaks.
                   </p>
                 </div>
               </div>
 
               <div className="scan-module-card disabled">
-                <div className="card-header" onClick={() => setIsSamplingOpen(!isSamplingOpen)} style={{cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <input type="checkbox" id="m-sampling" disabled />
-                  <label htmlFor="m-sampling">Sampling Instability Analysis</label>
-                  <span className="status-badge soon">COMING SOON</span>
-                  <span style={{
-                    transform: isSamplingOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.4s ease-in-out',
-                    color: '#6c757d',
-                    fontSize: '12px'
-                  }}>▼</span>
+                <div className="card-header-clickable" onClick={() => setIsSamplingOpen(!isSamplingOpen)}>
+                  <div className="checkbox-label-wrapper">
+                    <input type="checkbox" id="m-sampling" disabled />
+                    <label htmlFor="m-sampling">Sampling Instability Analysis</label>
+                  </div>
+                  <div className="badge-arrow-wrapper">
+                    <span className="status-badge soon">COMING SOON</span>
+                    <span className={`arrow-icon ${isSamplingOpen ? "rotated" : ""}`}>▼</span>
+                  </div>
                 </div>
-                <div style={{
-                  maxHeight: isSamplingOpen ? '200px' : '0px',
-                  opacity: isSamplingOpen ? 1 : 0,
-                  overflow: 'hidden',
-                  transition: 'max-height 0.4s ease-in-out, opacity 0.3s ease-in-out',
-                }}>
-                  <p className="card-desc" style={{marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e0e0e0'}}>
+                <div className="collapsible-content" style={{ maxHeight: isSamplingOpen ? "300px" : "0px", opacity: isSamplingOpen ? 1 : 0 }}>
+                  <p className="card-desc">
                     Runs test scenarios across a customized temperature × top_p inference grid with N=20 runs per point.
-                    Calculates the Instability Score (max(P_safe) - min(P_safe)) to detect alignment degradation under varying sampling parameters.
+                    Calculates the Instability Score to detect alignment degradation.
                   </p>
                 </div>
               </div>
 
               <div className="scan-module-card disabled">
-                <div className="card-header" onClick={() => setIsGCDOpen(!isGCDOpen)} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <input type="checkbox" id="m-gcg" disabled />
-                  <label htmlFor="m-gcg">Greedy Coordinate Gradient (GCG) Attacks</label>
-                  <span className="status-badge soon">COMING SOON</span>
-                  <span style={{
-                    transform: isGCDOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.4s ease-in-out',
-                    color: '#6c757d',
-                    fontSize: '12px'
-                  }}>▼</span>
+                <div className="card-header-clickable" onClick={() => setIsGCDOpen(!isGCDOpen)}>
+                  <div className="checkbox-label-wrapper">
+                    <input type="checkbox" id="m-gcg" disabled />
+                    <label htmlFor="m-gcg">Greedy Coordinate Gradient (GCG) Attacks</label>
+                  </div>
+                  <div className="badge-arrow-wrapper">
+                    <span className="status-badge soon">COMING SOON</span>
+                    <span className={`arrow-icon ${isGCDOpen ? "rotated" : ""}`}>▼</span>
+                  </div>
                 </div>
-                <div style={{
-                  maxHeight: isGCDOpen ? '200px' : '0px',
-                  opacity: isGCDOpen ? 1 : 0,
-                  overflow: 'hidden',
-                  transition: 'max-height 0.4s ease-in-out, opacity 0.3s ease-in-out',
-                }}>
-                  <p className="card-desc" style={{marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e0e0e0'}}>
+                <div className="collapsible-content" style={{ maxHeight: isGCDOpen ? "300px" : "0px", opacity: isGCDOpen ? 1 : 0 }}>
+                  <p className="card-desc">
                     Executes a gradient-based token optimization via Greedy Coordinate Gradient (GCG) directly on open weights.
-                    Discovers universal adversarial suffixes designed to mathematically force the model to begin its response with an affirmative token.
                   </p>
                 </div>
               </div>
@@ -273,34 +258,51 @@ function App() {
                   <p><span className="label">Recommendation</span><br />{result.verdict.recommendation}</p>
                 </div>
 
-                {result.metrics.map((m, index) => (
-                    <div className="metric" key={index}>
-                      <h3>{m.title}</h3>
-                      <div className="headline">{m.headline}</div>
-                      <p className="what">{m.what}</p>
-                      <p className="read">{m.read}</p>
-                      <div className="fields">
-                        {Object.entries(m.fields).map(([key, value]) => {
-                          const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
-                          const lowerVal = valStr.toLowerCase();
+                {result.metrics.map((m, index) => {
+                  const isOpen = !!openMetrics[index];
+                  const headlineColorClass = getColorClass(m.headline);
 
-                          // Назначаем класс цвета в зависимости от критичности статуса
-                          let highlightClass = "";
-                          if (lowerVal === "high" || lowerVal === "failed" || lowerVal === "1") {
-                            highlightClass = "status-danger";
-                          } else if (lowerVal === "low" || lowerVal === "passed" || lowerVal === "false" || lowerVal === "blocked") {
-                            highlightClass = "status-success";
-                          }
+                  return (
+                      <div className={`metric metric-dropdown ${isOpen ? "open" : ""}`} key={index}>
+                        <div className="metric-header" onClick={() => toggleMetric(index)}>
+                          <div className="metric-header-title">
+                            <h3>{m.title}</h3>
+                            <div className={`headline-badge ${headlineColorClass}`}>
+                              {m.headline}
+                            </div>
+                          </div>
+                          <span className={`metric-arrow ${isOpen ? "rotated" : ""}`}>▼</span>
+                        </div>
 
-                          return (
-                              <span key={key}>
-                              {key}: <b className={highlightClass}>{valStr}</b>
-                            </span>
-                          );
-                        })}
+                        <div
+                            className="metric-collapsible"
+                            style={{
+                              maxHeight: isOpen ? "2000px" : "0px",
+                              opacity: isOpen ? 1 : 0,
+                              overflow: isOpen ? "visible" : "hidden"
+                            }}
+                        >
+                          <div className="metric-body">
+                            <p className="what">{m.what}</p>
+                            <p className="read">{m.read}</p>
+
+                            <div className="fields">
+                              {Object.entries(m.fields).map(([key, value]) => {
+                                const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                                const itemColorClass = getColorClass(valStr);
+
+                                return (
+                                    <span key={key}>
+                                      {key}: <b className={itemColorClass}>{valStr}</b>
+                                    </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                ))}
+                  );
+                })}
 
                 <div className="meta">
                   {result.meta.params ? `${(result.meta.params / 1e6).toFixed(0)}M params · ` : ""}
