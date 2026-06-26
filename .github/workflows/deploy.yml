@@ -7,23 +7,12 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e # Скрипт немедленно завершится, если любая команда вернет ошибку
-            
-            cd ~/ai-safety || exit 1
-            
-            echo "Pulling latest changes from main branch..."
-            git pull origin main
-            
-            echo "Rebuilding and restarting containers..."
-            docker compose up -d --build
-            
-            echo "Deployment successfully completed!"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Rebuild and restart containers
+        run: |
+          docker compose down
+          docker compose up -d --build
