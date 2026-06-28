@@ -11,6 +11,7 @@ from huggingface_hub.utils import RepositoryNotFoundError
 
 from src.scanner import Model, empty_cache
 from src.scanner.modules import safety_margin, refusal_direction, verdict
+from src.scanner.modules import obfuscation
 from src.scanner.modules.prompt_injection import PromptInjectionConfig, run as run_injection
 
 from . import config, db, explain
@@ -157,6 +158,12 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
                 print(f"[ERROR] prompt_injection failed: {e}", flush=True)
                 injection_result = None
 
+        obfuscation_result = None
+        if "obfuscation" in modules:
+            obfuscation_result = obfuscation.run(
+                model, harmful,
+                config=obfuscation.ObfuscationConfig.from_yaml(str(config.ROOT / "configs" / "general.yaml"))
+            )
     finally:
         del model
         gc.collect()
@@ -175,7 +182,8 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    return explain.build(repo, margin, direction, report, meta, injection=injection_result)
+    return explain.build(repo, margin, direction, report, meta,
+    injection=injection_result, obfuscation=obfuscation_result)
 
 
 def scan(repo, force=False, modules=None):

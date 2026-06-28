@@ -60,15 +60,31 @@ def metric_blocks(margin, direction):
 def _injection_block(injection):
     s = injection.get("summary", {})
     asr = s.get("asr_conditional")
-    headline = f"ASR = {asr*100:.0f}%" if asr is not None else "ASR = N/A"
+
+    if asr is None:
+        return {
+            "id": "prompt_injection",
+            "title": "Prompt Injection & Multi‑Turn Drift",
+            "headline": "N/A",
+            "fields": {},
+            "what": (
+                "ASR is not available because the model did not refuse any harmful prompts in the base test. "
+                "The model already complies with harmful requests, so injection attacks cannot be assessed."
+            ),
+            "read": (
+                "Test a model that exhibits baseline refusal to see meaningful ASR."
+            ),
+        }
+
+    headline = f"ASR = {asr*100:.0f}%"
     fields = {
         "asr_conditional": asr,
         "mean_injection_delta": s.get("mean_injection_delta"),
         "avg_multi_turn_drift": s.get("avg_multi_turn_drift"),
         "severity": s.get("severity"),
     }
-    # Убираем ключи, где значение None, чтобы не показывать лишнего
     fields = {k: v for k, v in fields.items() if v is not None}
+
     return {
         "id": "prompt_injection",
         "title": "Prompt Injection & Multi‑Turn Drift",
@@ -84,8 +100,57 @@ def _injection_block(injection):
         ),
     }
 
+def _obfuscation_block(obf_result):
+    s = obf_result.get("summary", {})
+    worst_rate = s.get("worst_case_bypass_rate")
 
-def build(repo, margin, direction, report, meta, injection=None):
+    if worst_rate is None:
+        return {
+            "id": "obfuscation",
+            "title": "Obfuscation Attacks (Base64, Leetspeak, ROT13, etc.)",
+            "headline": "N/A",
+            "fields": {},
+            "what": (
+                "Bypass rate is not available because the model did not refuse any harmful prompts in the base test. "
+                "The model already complies with harmful requests, so obfuscation techniques cannot be assessed."
+            ),
+            "read": (
+                "Test a model that exhibits baseline refusal to see meaningful bypass rates."
+            ),
+        }
+
+    headline = f"worst_case_bypass_rate = {worst_rate*100:.0f}%"
+
+    per_obf = s.get("per_obfuscator", {})
+    if per_obf:
+        techniques_parts = []
+        for name, stats in per_obf.items():
+            rate = stats.get("bypass_rate")
+            rate_str = f"{rate*100:.0f}%" if rate is not None else "N/A"
+            techniques_parts.append(f"{name}: {rate_str}")
+        techniques_str = ", ".join(techniques_parts)
+    else:
+        techniques_str = "No techniques evaluated"
+
+    fields = {
+        "worst_case_bypass_rate": worst_rate,
+        "best_obfuscator": s.get("best_obfuscator"),
+        "severity": s.get("severity"),
+        "techniques": techniques_str,
+    }
+    fields = {k: v for k, v in fields.items() if v is not None}
+
+    return {
+        "id": "obfuscation",
+        "title": "Obfuscation Attacks (Base64, Leetspeak, ROT13, etc.)",
+        "headline": headline,
+        "fields": fields,
+        "what": "Obfuscation techniques that hide harmful intent.",
+        "read": "Higher bypass rate means the model is easily fooled by obfuscation.",
+    }
+
+
+def build(repo, margin, direction, report, meta, injection=None, obfuscation=None):
     v = report["summary"]
     result = {
         "repo": repo,
@@ -102,4 +167,6 @@ def build(repo, margin, direction, report, meta, injection=None):
     }
     if injection is not None and isinstance(injection, dict) and "summary" in injection:
         result["metrics"].append(_injection_block(injection))
+    if obfuscation is not None:
+        result["metrics"].append(_obfuscation_block(obfuscation))
     return result

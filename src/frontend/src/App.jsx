@@ -1,5 +1,19 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import "./App.css";
+import notificationSound from './notification.mp3';
+
+const colorRules = {
+  fail_rate: { type: 'percentage', thresholds: [0.10, 0.30], colors: ['status-success', 'status-warning', 'status-danger'] },
+  asr_conditional: { type: 'percentage', thresholds: [0.10, 0.30], colors: ['status-success', 'status-warning', 'status-danger'] },
+  worst_case_bypass_rate: { type: 'percentage', thresholds: [0.10, 0.30], colors: ['status-success', 'status-warning', 'status-danger'] },
+  harm_vs_benign_auroc: { type: 'auroc', thresholds: [0.80, 0.60], colors: ['status-success', 'status-warning', 'status-danger'] },
+  separation_auroc: { type: 'auroc', thresholds: [0.80, 0.60], colors: ['status-success', 'status-warning', 'status-danger'] },
+  mean_margin_harmful: { type: 'margin', thresholds: [0, -0.5], colors: ['status-success', 'status-warning', 'status-danger'] },
+  mean_injection_delta: { type: 'margin', thresholds: [0, -0.5], colors: ['status-success', 'status-warning', 'status-danger'] },
+  avg_multi_turn_drift: { type: 'margin', thresholds: [0, -0.5], colors: ['status-success', 'status-warning', 'status-danger'] },
+  cohens_d: { type: 'cohens_d', thresholds: [0.80, 0.50], colors: ['status-success', 'status-warning', 'status-danger'] },
+  severity: { type: 'severity', mapping: { 'low': 'status-success', 'medium': 'status-warning', 'high': 'status-danger' } }
+};
 
 function App() {
   const [repo, setRepo] = useState("");
@@ -12,9 +26,11 @@ function App() {
   const [isLeakageOpen, setIsLeakageOpen] = useState(false);
   const [isSamplingOpen, setIsSamplingOpen] = useState(false);
   const [isGCDOpen, setIsGCDOpen] = useState(false);
+  const [isObfuscationOpen, setIsObfuscationOpen] = useState(false);
 
   const [scanGeneral, setScanGeneral] = useState(true);
   const [scanInjection, setScanInjection] = useState(false);
+  const [scanObfuscation, setScanObfuscation] = useState(false);
 
   const [openMetrics, setOpenMetrics] = useState({});
 
@@ -25,11 +41,56 @@ function App() {
     }));
   };
 
+  const audioCtxRef = useRef(null);
+
+  const ensureAudioContext = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  };
+
+  const playNotificationSound = async () => {
+    try {
+      const ctx = ensureAudioContext();
+      const response = await fetch(notificationSound);
+      if (!response.ok) throw new Error('Failed to load audio file');
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0.6;
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      source.start(0);
+    } catch (error) {
+      console.warn('MP3 playback failed, using synthetic sound:', error);
+      try {
+        const ctx = ensureAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.3);
+      } catch (e) {
+      }
+    }
+  };
+
   const handleScan = async (e) => {
     e.preventDefault();
     const trimmedRepo = repo.trim();
     if (!trimmedRepo) return;
-
+    ensureAudioContext();
     setLoading(true);
     setResult(null);
     setOpenMetrics({});
@@ -43,6 +104,7 @@ function App() {
       const selectedModules = [];
       if (scanGeneral) selectedModules.push("general");
       if (scanInjection) selectedModules.push("prompt_injections");
+      if (scanObfuscation) selectedModules.push("obfuscation");
 
       const res = await fetch("/api/scan", {
         method: "POST",
@@ -65,6 +127,7 @@ function App() {
       } else {
         setStatus({ text: "", isError: false, visible: false });
         setResult(data);
+        playNotificationSound();
       }
     } catch (err) {
       setStatus({
@@ -77,15 +140,66 @@ function App() {
     }
   };
 
-  const getColorClass = (text) => {
-    const lower = String(text).toLowerCase();
-    if (lower.includes("fail") || lower.includes("high") || lower.includes("danger") || lower.includes("100%")) {
-      return "status-danger";
+  const getColorClass = (key, value) => {
+    if (value === null || value === undefined) return '';
+    const rule = colorRules[key];
+    if (!rule) return '';
+
+    if (rule.type === 'severity') {
+      return rule.mapping[String(value).toLowerCase()] || '';
     }
-    if (lower.includes("low") || lower.includes("passed") || lower.includes("94") || lower.includes("block")) {
-      return "status-success";
+
+    const num = parseFloat(value);
+    if (isNaN(num)) return '';
+
+    const [good, bad] = rule.thresholds;
+    if (key === 'fail_rate' || key === 'asr_conditional' || key === 'worst_case_bypass_rate') {
+      if (num <= good) return rule.colors[0];
+      if (num <= bad)  return rule.colors[1];
+      return rule.colors[2];
     }
-    return "status-warning";
+    if (rule.type === 'auroc' || rule.type === 'cohens_d') {
+      if (num >= good) return rule.colors[0];
+      if (num >= bad)  return rule.colors[1];
+      return rule.colors[2];
+    }
+    if (rule.type === 'margin') {
+      if (num >= good) return rule.colors[0];
+      if (num >= bad)  return rule.colors[1];
+      return rule.colors[2];
+    }
+    return '';
+  };
+
+  const getHeadlineColor = (text) => {
+    const lower = text.toLowerCase();
+
+    if (lower.includes('n/a') || lower.includes('null') || lower.includes('no refused')) {
+      return 'status-neutral';
+    }
+    const match = text.match(/([\d.]+)%?/);
+    if (!match) return '';
+
+    const num = parseFloat(match[1]);
+    if (isNaN(num)) return '';
+
+    if (text.includes('%')) {
+      if (num <= 10) return 'status-success';
+      if (num <= 30) return 'status-warning';
+      return 'status-danger';
+    }
+
+    if (lower.includes('auroc') || lower.includes('cohens')) {
+      if (num >= 0.8) return 'status-success';
+      if (num >= 0.6) return 'status-warning';
+      return 'status-danger';
+    }
+
+    if (lower.includes('high') || lower.includes('fail')) return 'status-danger';
+    if (lower.includes('medium')) return 'status-warning';
+    if (lower.includes('low') || lower.includes('passed')) return 'status-success';
+
+    return '';
   };
 
   return (
@@ -156,6 +270,34 @@ function App() {
                     Orchestrates a three-phase dialogue to gradually shift context toward a target harmful request.
                     Captures logit snapshots after each turn to compute KL-divergence relative to the first step.
                     Tests both direct prompt injections and indirect injections embedded within documents.
+                  </p>
+                </div>
+              </div>
+
+              <div className={`scan-module-card ${scanObfuscation ? "active" : ""}`}>
+                <div className="card-header-clickable" onClick={() => setIsObfuscationOpen(!isObfuscationOpen)}>
+                  <div className="checkbox-label-wrapper" onClick={(e) => e.stopPropagation()}>
+                    <input
+                        type="checkbox"
+                        id="m-obfuscation"
+                        checked={scanObfuscation}
+                        onChange={(e) => setScanObfuscation(e.target.checked)}
+                    />
+                    <label htmlFor="m-obfuscation"> Obfuscation Attacks </label>
+                  </div>
+                  <div className="badge-arrow-wrapper">
+                    <span className="status-badge live">LIVE</span>
+                    <span className={`arrow-icon ${isObfuscationOpen ? "rotated" : ""}`}>▼</span>
+                  </div>
+                </div>
+
+                <div className="collapsible-content" style={{ maxHeight: isObfuscationOpen ? "300px" : "0px", opacity: isObfuscationOpen ? 1 : 0 }}>
+                  <p className="card-desc">
+                    Evaluates model resilience against six obfuscation techniques: Base64 encoding, leetspeak, ROT‑13 cipher,
+                    payload splitting, low‑resource language framing (Swahili), and DAN‑style virtualization. For each harmful
+                    prompt, the module applies all obfuscators and measures the change in the safety margin (logP(refuse) −
+                    logP(comply)). The worst‑case bypass rate across all techniques reveals how easily the model can be
+                    tricked into executing harmful instructions hidden inside transformed text.
                   </p>
                 </div>
               </div>
@@ -260,14 +402,13 @@ function App() {
 
                 {result.metrics.map((m, index) => {
                   const isOpen = !!openMetrics[index];
-                  const headlineColorClass = getColorClass(m.headline);
 
                   return (
                       <div className={`metric metric-dropdown ${isOpen ? "open" : ""}`} key={index}>
                         <div className="metric-header" onClick={() => toggleMetric(index)}>
                           <div className="metric-header-title">
                             <h3>{m.title}</h3>
-                            <div className={`headline-badge ${headlineColorClass}`}>
+                            <div className={`headline-badge ${getHeadlineColor(m.headline)}`}>
                               {m.headline}
                             </div>
                           </div>
@@ -285,15 +426,14 @@ function App() {
                           <div className="metric-body">
                             <p className="what">{m.what}</p>
                             <p className="read">{m.read}</p>
-
                             <div className="fields">
                               {Object.entries(m.fields).map(([key, value]) => {
                                 const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
-                                const itemColorClass = getColorClass(valStr);
-
+                                const itemColorClass = getColorClass(key, value);
+                                const displayValue = (value === null || value === undefined) ? 'N/A' : valStr;
                                 return (
                                     <span key={key}>
-                                      {key}: <b className={itemColorClass}>{valStr}</b>
+                                      {key}: <b className={itemColorClass}>{displayValue}</b>
                                     </span>
                                 );
                               })}

@@ -399,3 +399,8 @@ main {
 }
 
 .meta { color: var(--muted); font-size: 0.78rem; margin-top: 24px; text-align: center; }
+
+.status-neutral {
+  color: #6c757d;
+  background-color: #f8f9fa;
+}
