@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import "./App.css";
 import notificationSound from './notification.mp3';
 
@@ -40,6 +40,82 @@ function App() {
       [index]: !prev[index],
     }));
   };
+
+  const modelOptions = [
+    'Qwen/Qwen2.5-7B-Instruct',
+    'HuggingFaceTB/SmolLM2-1.7B-Instruct',
+    'mistralai/Mistral-7B-Instruct-v0.1',
+    'HuggingFaceTB/SmolLM2-360M-Instruct',
+    'meta-llama/Llama-3.2-3B-Instruct'
+  ];
+
+  const selectModel = (model) => {
+    setRepo(model);
+    setIsDropdownOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!isDropdownOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        setIsDropdownOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
+      setHighlightedIndex(-1);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+          prev < filteredModels.length - 1 ? prev + 1 : prev
+      );
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+      return;
+    }
+
+    if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault();
+      selectModel(filteredModels[highlightedIndex]);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setRepo(value);
+    const filtered = modelOptions.filter(m =>
+        m.toLowerCase().includes(value.toLowerCase())
+    );
+    setFilteredModels(filtered);
+    setHighlightedIndex(-1);
+    setIsDropdownOpen(true);
+  };
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [filteredModels, setFilteredModels] = useState(modelOptions);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const dropdownRef = useRef(null);
 
   const audioCtxRef = useRef(null);
 
@@ -359,25 +435,51 @@ function App() {
               </div>
 
             </div>
-
-            <form onSubmit={handleScan}>
-              <div className="target-repo-input">
-                <label htmlFor="repo">Target Model Repository (Hugging Face):</label>
-                <div className="search-box">
-                  <input
-                      id="repo"
-                      type="text"
-                      placeholder="owner/model — e.g. HuggingFaceTB/SmolLM2-360M-Instruct"
-                      autoComplete="off"
-                      value={repo}
-                      onChange={(e) => setRepo(e.target.value)}
-                  />
-                  <button id="scan-btn" type="submit" disabled={loading}>
-                    {loading ? "Scanning..." : "RUN ACTIVE SCANS"}
-                  </button>
+              <form onSubmit={handleScan}>
+                <div className="target-repo-input">
+                  <label htmlFor="repo">Target Model Repository (Hugging Face):</label>
+                  <div className="search-box">
+                    <div className="custom-select-wrapper" ref={dropdownRef}>
+                      <input
+                          id="repo"
+                          type="text"
+                          placeholder="owner/model — e.g. HuggingFaceTB/SmolLM2-360M-Instruct"
+                          autoComplete="off"
+                          value={repo}
+                          onChange={handleInputChange}
+                          onFocus={() => setIsDropdownOpen(true)}
+                          onKeyDown={handleKeyDown}
+                      />
+                      <span className="select-arrow">▼</span>
+                      {isDropdownOpen && (
+                          <ul className="dropdown-list">
+                            {filteredModels.length > 0 ? (
+                                filteredModels.map((model, index) => (
+                                    <li
+                                        key={model}
+                                        className={index === highlightedIndex ? 'dropdown-item-highlighted' : 'dropdown-item'}
+                                        onMouseEnter={() => setHighlightedIndex(index)}
+                                        onMouseLeave={() => setHighlightedIndex(-1)}
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          selectModel(model);
+                                        }}
+                                    >
+                                      {model}
+                                    </li>
+                                ))
+                            ) : (
+                                <li className="dropdown-empty">No models found</li>
+                            )}
+                          </ul>
+                      )}
+                    </div>
+                    <button id="scan-btn" type="submit" disabled={loading}>
+                      {loading ? "Scanning..." : "RUN ACTIVE SCANS"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
             <p className="hint">Running against configured target domain thresholds. Small instruct models work best.</p>
           </section>
 
