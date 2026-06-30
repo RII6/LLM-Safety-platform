@@ -44,5 +44,12 @@ def run_scan(req: ScanRequest):
 def list_reports():
     return db.list_scans()
 
+@app.get("/api/reports/{scan_id}")
+def get_scan(scan_id: int):
+    report = db.get_scan_by_id(scan_id)
+    if report is None:
+        return JSONResponse(status_code=404, content={"error": "Scan not found"})
+    return report
+
 
 app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")

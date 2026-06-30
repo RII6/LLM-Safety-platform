@@ -33,7 +33,7 @@ export default function RecentScans({ refreshKey }) {
         <>
             <div className="recent-scans">
                 <div className="recent-scans-header">
-                    <h3>📋 Recent Scans</h3>
+                    <h3>Recent Scans</h3>
                     <button className="refresh-btn" onClick={loadScans} disabled={loading}>
                         {loading ? '...' : '⟳'}
                     </button>
