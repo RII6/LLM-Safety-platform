@@ -19,13 +19,14 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    HF_HOME="/app/cache"
 
 # Setup virtual environment and install dependencies.
 # We explicitly install the CPU version of torch first to keep the image lean.
 COPY pyproject.toml uv.lock ./
 RUN uv venv && \
-    uv pip install torch --index-url https://download.pytorch.org/whl/cpu && \
+    uv pip install torch && \
     uv sync --no-dev
 
 # Copy backend source code
@@ -37,9 +38,16 @@ COPY --from=frontend-builder /app/frontend/dist ./src/app/static/
 
 # Create a reports directory for cache fallback if DB is not used (just in case)
 RUN mkdir -p reports
+RUN mkdir -p reports cache
 
 # Expose the API port
 EXPOSE 80
 
 # Start FastAPI app
 CMD ["uvicorn", "src.app.server:app", "--host", "0.0.0.0", "--port", "80"]
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
