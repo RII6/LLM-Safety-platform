@@ -20,6 +20,7 @@ services:
           memory: 512M
 
   web:
+    image: ghcr.io/rii6/ai-safety-web:latest
     build:
       context: .
       dockerfile: Dockerfile
