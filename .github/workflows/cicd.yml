@@ -2,9 +2,9 @@ name: DevSecOps Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "ci_cd" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "ci_cd" ]
 
 permissions:
   contents: read
@@ -63,6 +63,8 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository }}/ai-safety-web:latest
+          build-args: |
+            VITE_BUILD_INFO=${{ github.ref_name }}@${{ github.sha }}
 
   sign-image:
     name: Sign Image with Cosign
@@ -91,3 +93,4 @@ jobs:
         run: |
           docker compose pull
           docker compose up -d
+          docker image prune -f

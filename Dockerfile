@@ -4,6 +4,8 @@ WORKDIR /app/frontend
 COPY src/frontend/package*.json ./
 RUN npm ci
 COPY src/frontend/ ./
+ARG VITE_BUILD_INFO
+ENV VITE_BUILD_INFO=$VITE_BUILD_INFO
 RUN npm run build
 
 # Stage 2: Build the backend and final image
