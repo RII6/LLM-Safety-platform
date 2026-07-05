@@ -5,7 +5,7 @@ const Header = () => {
         <header>
             <div className="header-top">
                 <div className="logo-area">
-                    <span className="logo-icon">🛡️</span>
+                    <span className="logo-icon" title={import.meta.env.VITE_BUILD_INFO || "Local Build"}>🛡️</span>
                     <h1>Unified LLM Safety Platform</h1>
                 </div>
                 <div className="user-profile">

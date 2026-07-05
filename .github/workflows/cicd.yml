@@ -1,0 +1,103 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ "main", "ci_cd" ]
+  pull_request:
+    branches: [ "main", "ci_cd" ]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  sast-scan:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+        with:
+          config: "p/default"
+
+  sca-scan:
+    name: Trivy SCA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  build-and-push:
+    name: Build & Push to GHCR
+    needs: [sast-scan, sca-scan]
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.build_push.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        id: build_push
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/rii6/ai-safety-web:latest
+          build-args: |
+            VITE_BUILD_INFO=${{ github.ref_name }}@${{ github.sha }}
+
+  sign-image:
+    name: Sign Image with Cosign
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign the published Docker image
+        env:
+          COSIGN_YES: "true"
+        run: |
+          cosign sign ghcr.io/rii6/ai-safety-web@${{ needs.build-and-push.outputs.image_digest }}
+
+  deploy:
+    name: Deploy to Server
+    needs: sign-image
+    runs-on: self-hosted
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Pull verified image and restart
+        run: |
+          docker compose pull
+          docker compose up -d
+          docker image prune -f

@@ -5,7 +5,7 @@ const StatusDisplay = ({ text, isError, visible }) => {
     return (
         <div className={`status ${isError ? "error" : ""}`}>
             {!isError && <span className="spinner"></span>}
-            <span dangerouslySetInnerHTML={{ __html: text }} />
+            <span>{text}</span>
         </div>
     );
 };

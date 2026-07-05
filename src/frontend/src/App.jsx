@@ -84,7 +84,7 @@ function App() {
     setResult(null);
     setOpenMetrics({});
     setStatus({
-      text: `Scanning <b>${trimmedRepo}</b> — loading the model and probing internal state…`,
+      text: <>Scanning <b>{trimmedRepo}</b> — loading the model and probing internal state…</>,
       isError: false,
       visible: true,
     });
