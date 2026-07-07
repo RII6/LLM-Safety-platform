@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import ResultSection from './ResultSection';
+import { apiFetch } from '../utils/api';
+
 
 export default function ScanModal({ scanId, onClose }) {
     const [report, setReport] = useState(null);
@@ -19,7 +21,7 @@ export default function ScanModal({ scanId, onClose }) {
         const fetchReport = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/reports/${scanId}`);
+                const res = await apiFetch(`/api/reports/${scanId}`);
                 if (!res.ok) throw new Error('Failed to load report');
                 const data = await res.json();
                 setReport(data);

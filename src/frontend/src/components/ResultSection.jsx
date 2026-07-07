@@ -1,15 +1,53 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MetricDropdown from './MetricDropdown';
+import CompareSelectModal from './CompareSelectModal';
 
 const ResultSection = ({ result, openMetrics, toggleMetric }) => {
+    const navigate = useNavigate();
+    const [showCompareModal, setShowCompareModal] = useState(false);
+
     const verdictClass = result.verdict.code === 'danger' ? 'do_not_deploy' : result.verdict.code;
+
+    const downloadJSON = () => {
+        const data = {
+            repo: result.repo,
+            verdict: result.verdict,
+            metrics: result.metrics,
+            meta: result.meta,
+            downloaded_at: new Date().toISOString()
+        };
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `scan_${result.repo.replace('/', '_')}_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const openCompareModal = () => setShowCompareModal(true);
+    const closeCompareModal = () => setShowCompareModal(false);
 
     return (
         <section id="result">
             <div className={`verdict ${verdictClass}`}>
-                <div className="repo">
-                    {result.repo}
-                    {result.from_cache && " · cached"}
+                <div className="verdict-header">
+                    <div className="repo">
+                        {result.repo}
+                        {result.from_cache && " · cached"}
+                    </div>
+                    <div className="verdict-actions">
+                        <button onClick={openCompareModal} className="compare-btn-small" title="Compare with another scan">
+                            ⇄ Compare with...
+                        </button>
+                        <button onClick={downloadJSON} className="download-btn-small" title="Download JSON">
+                            ⬇ JSON
+                        </button>
+                    </div>
                 </div>
                 <span className="badge">{result.verdict.label}</span>
                 <p><span className="label">Diagnosis</span><br />{result.verdict.diagnosis}</p>
@@ -30,6 +68,14 @@ const ResultSection = ({ result, openMetrics, toggleMetric }) => {
                 {result.meta.params ? `${(result.meta.params / 1e6).toFixed(0)}M params · ` : ""}
                 {result.meta.sample}/{result.meta.sample} prompts · {result.meta.device}/{result.meta.dtype} · {result.meta.elapsed_s}s
             </div>
+
+            {showCompareModal && (
+                <CompareSelectModal
+                    currentScanId={result.id}
+                    currentRepo={result.repo}
+                    onClose={closeCompareModal}
+                />
+            )}
         </section>
     );
 };
