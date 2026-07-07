@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+import threading
+import uuid
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as _HTTPExc
 from pydantic import BaseModel, Field, field_validator
 
 from . import auth, config, db
@@ -71,9 +74,6 @@ class AuthResponse(BaseModel):
     user: UserOut
 
 
-# ── scan models ─────────────────────────────────────────────────────────────────
-
-
 class ScanRequest(BaseModel):
     repo: str
     force: bool = False
@@ -107,20 +107,61 @@ def me(user: dict = Depends(auth.get_current_user)):
     return user
 
 
-# ── scan routes (require a logged-in user) ──────────────────────────────────────
+# ── async scan jobs ─────────────────────────────────────────────────────────────
+# A scan takes minutes on this CPU-only host. Running it synchronously makes the
+# reverse proxy time out and return an HTML error page, which the frontend can't
+# JSON.parse. So POST /api/scan starts the scan in a background thread and returns
+# a job id immediately; the client polls GET /api/scan/status/{job_id} for the
+# verdict. scan()'s own lock still serialises the actual compute.
+
+_JOBS: dict = {}
+_JOBS_LOCK = threading.Lock()
+_MAX_JOBS = 200
+
+
+def _set_job(job_id: str, value: dict) -> None:
+    with _JOBS_LOCK:
+        _JOBS[job_id] = value
+        if len(_JOBS) > _MAX_JOBS:  # bound memory: drop oldest
+            for k in list(_JOBS)[: len(_JOBS) - _MAX_JOBS]:
+                _JOBS.pop(k, None)
+
+
+def _run_job(job_id: str, repo: str, force: bool, modules: list, user_id) -> None:
+    try:
+        result = scan(repo, force=force, modules=modules, user_id=user_id)
+        _set_job(job_id, {"status": "done", "result": result})
+    except ScanError as e:
+        _set_job(job_id, {"status": "error", "error": e.message, "code": e.status})
+    except Exception as e:  # never leave a job stuck on "running"
+        _set_job(job_id, {"status": "error", "error": str(e), "code": 500})
 
 
 @app.get("/api/health")
 def health():
     return {"ok": True, "demo_model": config.DEMO_MODEL, "sample": config.SAMPLE}
 
-@app.post("/api/scan")
+
+@app.post("/api/scan", status_code=202)
 def run_scan(req: ScanRequest, user: Optional[dict] = Depends(auth.get_current_user_optional)):
     user_id = user["id"] if user else None
-    try:
-        return scan(req.repo, force=req.force, modules=req.modules, user_id=user_id)
-    except ScanError as e:
-        return JSONResponse(status_code=e.status, content={"error": e.message})
+    job_id = uuid.uuid4().hex
+    _set_job(job_id, {"status": "running"})
+    threading.Thread(
+        target=_run_job,
+        args=(job_id, req.repo, req.force, req.modules, user_id),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.get("/api/scan/status/{job_id}")
+def scan_status(job_id: str):
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Unknown or expired job."})
+    return job
 
 
 @app.get("/api/reports")
@@ -137,4 +178,14 @@ def get_scan(scan_id: int):
     return report
 
 
-app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")
+class _SPAStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except _HTTPExc as exc:
+            if exc.status_code == 404 and not path.startswith("api"):
+                return await super().get_response("index.html", scope)
+            raise
+
+
+app.mount("/", _SPAStaticFiles(directory=STATIC, html=True), name="static")
