@@ -17,8 +17,6 @@ const Sidebar = ({ isOpen, onClose, isAuthenticated, onLogout }) => {
     return (
         <div className={`sidebar ${isOpen ? "open" : ""}`}>
             <div className="sidebar-header">
-                <h2>Меню</h2>
-                <button className="sidebar-close" onClick={onClose}>×</button>
             </div>
             <nav className="sidebar-nav">
                 <ul>
@@ -56,11 +54,11 @@ const Sidebar = ({ isOpen, onClose, isAuthenticated, onLogout }) => {
                     </li>
 
                     {isAuthenticated ? (
-                        <li onClick={handleLogout}>
+                        <li onClick={handleLogout} className="nav-action">
                             Log out
                         </li>
                     ) : (
-                        <li onClick={handleLoginClick}>
+                        <li onClick={handleLoginClick} className="nav-action">
                             Sign in/sign up
                         </li>
                     )}

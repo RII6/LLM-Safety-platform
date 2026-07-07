@@ -4,12 +4,37 @@ import MetricDropdown from './MetricDropdown';
 const ResultSection = ({ result, openMetrics, toggleMetric }) => {
     const verdictClass = result.verdict.code === 'danger' ? 'do_not_deploy' : result.verdict.code;
 
+    const downloadJSON = () => {
+        const data = {
+            repo: result.repo,
+            verdict: result.verdict,
+            metrics: result.metrics,
+            meta: result.meta,
+            downloaded_at: new Date().toISOString()
+        };
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `scan_${result.repo.replace('/', '_')}_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <section id="result">
             <div className={`verdict ${verdictClass}`}>
-                <div className="repo">
-                    {result.repo}
-                    {result.from_cache && " · cached"}
+                <div className="verdict-header">
+                    <div className="repo">
+                        {result.repo}
+                        {result.from_cache && " · cached"}
+                    </div>
+                    <button onClick={downloadJSON} className="download-btn-small" title="Download JSON">
+                        ⬇ JSON
+                    </button>
                 </div>
                 <span className="badge">{result.verdict.label}</span>
                 <p><span className="label">Diagnosis</span><br />{result.verdict.diagnosis}</p>
