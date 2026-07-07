@@ -217,7 +217,7 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
     gcg=gcg_result)
 
 
-def scan(repo, force=False, modules=None):
+def scan(repo, force=False, modules=None, user_id=None):
     if modules is None:
         modules = ["general"]
 
@@ -233,6 +233,8 @@ def scan(repo, force=False, modules=None):
     if not force:
         cached = db.get_cached(key)
         if cached is not None:
+            if user_id is not None:
+                db.record_user_scan_by_key(user_id, key)  # add to this user's history
             cached["from_cache"] = True
             return cached
 
@@ -245,5 +247,7 @@ def scan(repo, force=False, modules=None):
 
     scan_id = db.save_scan(repo, key, result)
     result["id"] = scan_id
+    if user_id is not None:
+        db.record_user_scan(user_id, scan_id)
     result["from_cache"] = False
     return result
