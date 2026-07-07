@@ -49,6 +49,7 @@ def get_scan(scan_id: int):
     report = db.get_scan_by_id(scan_id)
     if report is None:
         return JSONResponse(status_code=404, content={"error": "Scan not found"})
+    report["id"] = scan_id
     return report
 
 

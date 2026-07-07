@@ -243,6 +243,7 @@ def scan(repo, force=False, modules=None):
     finally:
         _lock.release()
 
-    db.save_scan(repo, key, result)
+    scan_id = db.save_scan(repo, key, result)
+    result["id"] = scan_id
     result["from_cache"] = False
     return result

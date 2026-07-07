@@ -56,30 +56,34 @@ def get_cached(cache_key: str) -> dict | None:
     return row[0] if row else None
 
 
-def save_scan(repo: str, cache_key: str, result: dict) -> None:
-    """Persist a freshly computed report; upsert on cache_key."""
+def save_scan(repo: str, cache_key: str, result: dict) -> int | None:
+    """Persist a freshly computed report; upsert on cache_key. Returns the scan id."""
     meta = result.get("meta", {})
     verdict = result.get("verdict", {})
     gen = meta.get("generated", {})
     with _connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO scans (repo, cache_key, verdict_code, represents_harm,
-                               params, weight_bytes, sample, dtype,
-                               generated_harmful, generated_benign, elapsed_s, report)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (cache_key) DO UPDATE
-                SET report = EXCLUDED.report,
-                    verdict_code = EXCLUDED.verdict_code,
-                    created_at = now()
-            """,
-            (
-                repo, cache_key, verdict.get("code"), verdict.get("represents_harm"),
-                meta.get("params"), meta.get("weight_bytes"), meta.get("sample"),
-                meta.get("dtype"), gen.get("harmful", 0), gen.get("benign", 0),
-                meta.get("elapsed_s"), Jsonb(result),
-            ),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO scans (repo, cache_key, verdict_code, represents_harm,
+                                   params, weight_bytes, sample, dtype,
+                                   generated_harmful, generated_benign, elapsed_s, report)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (cache_key) DO UPDATE
+                    SET report = EXCLUDED.report,
+                        verdict_code = EXCLUDED.verdict_code,
+                        created_at = now()
+                RETURNING id
+                """,
+                (
+                    repo, cache_key, verdict.get("code"), verdict.get("represents_harm"),
+                    meta.get("params"), meta.get("weight_bytes"), meta.get("sample"),
+                    meta.get("dtype"), gen.get("harmful", 0), gen.get("benign", 0),
+                    meta.get("elapsed_s"), Jsonb(result),
+                ),
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
 
 
 def list_scans() -> list[dict]:

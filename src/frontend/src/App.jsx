@@ -6,6 +6,8 @@ import Sidebar from "./components/Sidebar";
 import HomePage from "./pages/HomePage";
 import ProfilePage from "./pages/ProfilePage";
 import HistoryPage from "./pages/HistoryPage";
+import ComparePage from "./pages/ComparePage";
+
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -49,6 +51,7 @@ function App() {
                         }
                     />
                     <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/compare/:id1/:id2" element={<ComparePage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>

@@ -1,0 +1,233 @@
+.compare-page {
+    padding: 20px 0;
+}
+
+.compare-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.compare-header h2 {
+    color: var(--text);
+    margin: 0;
+}
+
+.back-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+.compare-grid-header {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.compare-grid-header .compare-column {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.compare-grid-header .compare-column h3 {
+    color: var(--text);
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.compare-grid-header .meta {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 8px;
+}
+
+.compare-metrics {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.compare-metrics h3 {
+    color: var(--text);
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+.metric-row {
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+}
+
+.metric-row:last-child {
+    border-bottom: none;
+}
+
+.metric-title {
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.metric-values {
+    display: flex;
+    gap: 24px;
+}
+
+.metric-column {
+    flex: 1;
+}
+
+.metric-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+}
+
+.field-item {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.field-key {
+    font-weight: 500;
+    color: var(--text);
+    margin-right: 4px;
+}
+
+.field-value {
+    color: var(--text);
+}
+
+.field-value.status-success {
+    color: var(--green);
+}
+.field-value.status-warning {
+    color: var(--amber);
+}
+.field-value.status-danger {
+    color: var(--red);
+}
+.field-value.status-neutral {
+    color: var(--muted);
+}
+
+.metric-absent {
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 4px 0;
+}
+
+.headline-badge {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #fff;
+}
+.headline-badge.status-success {
+    background: var(--green);
+    color: #000;
+}
+.headline-badge.status-warning {
+    background: var(--amber);
+    color: #000;
+}
+.headline-badge.status-danger {
+    background: var(--red);
+    color: #fff;
+}
+.headline-badge.status-neutral {
+    background: var(--gray);
+    color: #fff;
+}
+
+.compare-select-modal .modal-body {
+    padding: 16px 0;
+}
+.filter-input {
+    margin-bottom: 16px;
+}
+.filter-input input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.9rem;
+}
+.filter-input input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.scan-list-select {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.scan-item-select {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.scan-item-select:hover {
+    background: var(--panel-2);
+}
+.scan-item-select .scan-repo {
+    color: var(--text);
+    font-weight: 500;
+    flex: 1;
+}
+.scan-item-select .scan-date {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin: 0 12px;
+}
+.scan-item-select .scan-verdict {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: capitalize;
+}
+.scan-item-select .scan-verdict.pass {
+    background: var(--green);
+    color: #000;
+}
+.scan-item-select .scan-verdict.warning {
+    background: var(--amber);
+    color: #000;
+}
+.scan-item-select .scan-verdict.danger {
+    background: var(--red);
+    color: #fff;
+}
+.scan-item-select .scan-verdict.fail {
+    background: var(--red);
+    color: #fff;
+}
+.no-scans {
+    color: var(--muted);
+    text-align: center;
+    padding: 20px 0;
+}
