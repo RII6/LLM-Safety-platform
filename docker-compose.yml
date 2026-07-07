@@ -9,23 +9,33 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
   web:
+    image: ghcr.io/rii6/ai-safety-web:latest
     build:
       context: .
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "80:80"
+      - "80:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/aisafety
       - SCAN_DEVICE=cpu
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/reports
     volumes:
-      - hf_cache:/root/.cache/huggingface
+      - hf_cache:/app/cache
     depends_on:
       db:
         condition: service_healthy
