@@ -177,7 +177,7 @@ def _run_scan(repo, params, weight_bytes, gen):
     return explain.build(repo, margin, direction, report, meta)
 
 
-def scan(repo, force=False):
+def scan(repo, force=False, user_id=None):
     repo = repo.strip()
     if not repo or repo.count("/") != 1:
         raise ScanError(400, "Enter a repo id like 'owner/model'.")
@@ -190,6 +190,8 @@ def scan(repo, force=False):
     if not force:
         cached = db.get_cached(key)
         if cached is not None:
+            if user_id is not None:
+                db.record_user_scan_by_key(user_id, key)  # add to this user's history
             cached["from_cache"] = True
             return cached
 
@@ -200,6 +202,8 @@ def scan(repo, force=False):
     finally:
         _lock.release()
 
-    db.save_scan(repo, key, result)
+    scan_id = db.save_scan(repo, key, result)
+    if user_id is not None:
+        db.record_user_scan(user_id, scan_id)  # add to this user's history
     result["from_cache"] = False
     return result

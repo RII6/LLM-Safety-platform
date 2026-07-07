@@ -92,6 +92,37 @@ Knobs (env vars): `SCAN_SAMPLE` (per-class prompts, default 25), `SCAN_MAX_PARAM
 `bfloat16`), `SCAN_DEVICE` (default `cpu`). One scan runs at a time; reports cache to
 `reports/`.
 
+### Accounts & authentication
+
+The API is multi-user. Sign up, log in, and each account gets its own scan
+history. Auth is token-based (send `Authorization: Bearer <token>`); passwords are
+stored as PBKDF2-HMAC-SHA256 hashes and never returned. The `users` and `user_scans`
+tables are created automatically at startup (alongside `scans`) — no migration step.
+
+| method | route              | auth   | body / result                                         |
+| ------ | ------------------ | ------ | ----------------------------------------------------- |
+| POST   | `/api/auth/signup` | —      | `{username, password, email?}` → `{token, user}`      |
+| POST   | `/api/auth/login`  | —      | `{username, password}` → `{token, user}`              |
+| GET    | `/api/auth/me`     | bearer | current user                                          |
+| POST   | `/api/scan`        | bearer | `{repo, force?}` → report (recorded in your history)  |
+| GET    | `/api/reports`     | bearer | your scan history                                     |
+
+```bash
+# sign up (returns a token), then scan as that user
+TOKEN=$(curl -s localhost:8000/api/auth/signup \
+  -H 'content-type: application/json' \
+  -d '{"username":"alice","password":"hunter2horse"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+curl -s localhost:8000/api/scan -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"repo":"owner/model"}'
+```
+
+Auth knobs (env vars): `AUTH_SECRET` (**set this in production** — the token signing
+key; the default is intentionally insecure), `AUTH_TOKEN_TTL` (token lifetime in
+seconds, default 86400), `AUTH_PBKDF2_ITERATIONS` (password-hash cost, default
+200000), `AUTH_CORS_ORIGINS` (comma-separated allowed origins for a separate
+frontend, default `*`).
+
 ## Deploy (2 GB VM)
 
 Sized for ~1.5 GB usable RAM. torch (CPU) ~0.5 GB + FastAPI ~0.12 GB leaves the rest

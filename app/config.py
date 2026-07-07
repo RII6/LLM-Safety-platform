@@ -62,6 +62,22 @@ DATABASE_URL = _resolve(
     "DATABASE_URL", _cfg, "database_url", "postgresql://postgres:postgres@localhost:5432/aisafety", str
 )
 
+# ── Auth ────────────────────────────────────────────────────────────────────────
+# Key used to sign session tokens. MUST be overridden in production (set
+# AUTH_SECRET); the default is intentionally obvious so a misconfigured deploy is
+# easy to spot. Token TTL is in seconds; PBKDF2 iterations tune password-hash cost.
+AUTH_SECRET = _resolve("AUTH_SECRET", _cfg, "auth_secret", "dev-insecure-change-me", str)
+AUTH_TOKEN_TTL = _resolve("AUTH_TOKEN_TTL", _cfg, "auth_token_ttl", 86_400, int)
+AUTH_PBKDF2_ITERATIONS = _resolve("AUTH_PBKDF2_ITERATIONS", _cfg, "auth_pbkdf2_iterations", 200_000, int)
+
+# Comma-separated list of allowed CORS origins for a separate frontend (e.g. the
+# Vite dev server). "*" allows any origin; credentials are not used (Bearer token).
+AUTH_CORS_ORIGINS = [
+    o.strip()
+    for o in _resolve("AUTH_CORS_ORIGINS", _cfg, "auth_cors_origins", "*", str).split(",")
+    if o.strip()
+]
+
 # ── Dynamic test-case generation (scan-time corpus augmentation) ────────────────
 GEN_N = _resolve("SCAN_GEN_N", _gen, "n", 0, int)
 GEN_PROVIDER = _resolve("SCAN_GEN_PROVIDER", _gen, "provider", "groq", str)
