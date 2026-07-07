@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getColorClass, getHeadlineColor } from '../utils/colorUtils';
+import { apiFetch } from '../utils/api';
+
 
 export default function ComparePage() {
     const { id1, id2 } = useParams();
@@ -13,8 +15,8 @@ export default function ComparePage() {
         const fetchScans = async () => {
             try {
                 const [res1, res2] = await Promise.all([
-                    fetch(`/api/reports/${id1}`),
-                    fetch(`/api/reports/${id2}`)
+                    apiFetch(`/api/reports/${id1}`),
+                    apiFetch(`/api/reports/${id2}`),
                 ]);
                 if (!res1.ok || !res2.ok) throw new Error('Failed to load scans');
                 const data1 = await res1.json();

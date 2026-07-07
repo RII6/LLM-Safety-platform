@@ -45,10 +45,6 @@
     color: var(--text);
 }
 
-.sidebar-close:hover {
-    color: var(--text);
-}
-
 .sidebar-nav ul {
     list-style: none;
     padding: 0;

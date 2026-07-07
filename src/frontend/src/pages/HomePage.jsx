@@ -16,6 +16,8 @@ export default function HomePage() {
     const [scanObfuscation, setScanObfuscation] = useState(false);
     const [scanSampling, setScanSampling] = useState(false);
 
+    const [refreshKey, setRefreshKey] = useState(0);
+
     let audioCtx = null;
 
     const ensureAudioContext = async () => {
@@ -92,9 +94,13 @@ export default function HomePage() {
             if (scanObfuscation) selectedModules.push("obfuscation");
             if (scanSampling) selectedModules.push("sampling");
 
+            const token = localStorage.getItem('token');
             const res = await fetch("/api/scan", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": token ? `Bearer ${token}` : "",
+                },
                 body: JSON.stringify({
                     repo: trimmedRepo,
                     force: true,
@@ -113,6 +119,7 @@ export default function HomePage() {
             } else {
                 setStatus({ text: "", isError: false, visible: false });
                 setResult(data);
+                setRefreshKey(prev => prev + 1);
                 await playNotificationSound();
             }
         } catch (err) {

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../utils/api';
+
 
 const CompareSelectModal = ({ currentScanId, currentRepo, onClose }) => {
     const [scans, setScans] = useState([]);
@@ -11,7 +13,7 @@ const CompareSelectModal = ({ currentScanId, currentRepo, onClose }) => {
     useEffect(() => {
         const fetchScans = async () => {
             try {
-                const res = await fetch('/api/reports');
+                const res = await apiFetch('/api/reports');
                 if (!res.ok) throw new Error('Failed to fetch scans');
                 const data = await res.json();
                 const otherScans = data.filter(scan => scan.id !== currentScanId);

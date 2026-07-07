@@ -1,6 +1,9 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 
-const Header = ({ toggleMenu, isAuthenticated }) => {
+const Header = ({ toggleMenu }) => {
+    const { user, isAuthenticated } = useAuth();
+
     return (
         <header>
             <div className="header-top">
@@ -10,10 +13,6 @@ const Header = ({ toggleMenu, isAuthenticated }) => {
                         <span className="logo-icon">🛡️</span>
                         <h1>Unified LLM Safety Platform</h1>
                     </div>
-                </div>
-                <div className="user-profile">
-                    <span className="user-icon">👤</span>
-                    {isAuthenticated ? "User" : "Guest"}
                 </div>
             </div>
         </header>

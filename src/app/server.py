@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,11 +38,11 @@ app.add_middleware(
 class SignupRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(min_length=8, max_length=128)
-    email: str | None = Field(default=None, max_length=254)
+    email: Optional[str] = Field(default=None, max_length=254)
 
     @field_validator("email")
     @classmethod
-    def _check_email(cls, v: str | None) -> str | None:
+    def _check_email(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
         v = v.strip()
@@ -60,8 +61,8 @@ class LoginRequest(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
-    email: str | None = None
-    created_at: str | None = None
+    email: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 class AuthResponse(BaseModel):
@@ -113,11 +114,11 @@ def me(user: dict = Depends(auth.get_current_user)):
 def health():
     return {"ok": True, "demo_model": config.DEMO_MODEL, "sample": config.SAMPLE}
 
-
 @app.post("/api/scan")
-def run_scan(req: ScanRequest, user: dict = Depends(auth.get_current_user)):
+def run_scan(req: ScanRequest, user: Optional[dict] = Depends(auth.get_current_user_optional)):
+    user_id = user["id"] if user else None
     try:
-        return scan(req.repo, force=req.force, modules=req.modules, user_id=user["id"])
+        return scan(req.repo, force=req.force, modules=req.modules, user_id=user_id)
     except ScanError as e:
         return JSONResponse(status_code=e.status, content={"error": e.message})
 
@@ -125,6 +126,7 @@ def run_scan(req: ScanRequest, user: dict = Depends(auth.get_current_user)):
 @app.get("/api/reports")
 def list_reports(user: dict = Depends(auth.get_current_user)):
     return db.list_scans(user_id=user["id"])
+
 
 @app.get("/api/reports/{scan_id}")
 def get_scan(scan_id: int):

@@ -1,18 +1,24 @@
-export default function ProfilePage({ isAuthenticated, onLogin }) {
+import { useAuth } from '../context/AuthContext';
+
+export default function ProfilePage() {
+    const { user, isAuthenticated, logout } = useAuth();
+
+    if (!isAuthenticated) {
+        return (
+            <div className="profile-page">
+                <h2>Profile</h2>
+                <p>You are not logged in.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="profile-page">
-            <h2>Профиль пользователя</h2>
-            {isAuthenticated ? (
-                <div>
-                    <p>Вы вошли как <strong>User</strong></p>
-                    <p>Здесь будет информация о ваших сканах, настройках и т.д.</p>
-                </div>
-            ) : (
-                <div>
-                    <p>Вы не авторизованы.</p>
-                    <button onClick={onLogin} className="login-btn">Войти</button>
-                </div>
-            )}
+            <h2>Profile</h2>
+            <p><strong>Username:</strong> {user.username}</p>
+            <p><strong>Email:</strong> {user.email || 'Not set'}</p>
+            <p><strong>Member since:</strong> {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
+            <button onClick={logout} className="logout-btn">Log out</button>
         </div>
     );
 }

@@ -19,6 +19,7 @@ import hmac
 import json
 import secrets
 import time
+from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -71,7 +72,7 @@ def _sign(payload_b64: str) -> str:
     return _b64e(sig.digest())
 
 
-def create_token(user_id: int, username: str, ttl: int | None = None) -> str:
+def create_token(user_id: int, username: str, ttl: Optional[int] = None) -> str:
     """Issue a signed token for *user_id* that expires after *ttl* seconds."""
     now = int(time.time())
     payload = {
@@ -84,7 +85,7 @@ def create_token(user_id: int, username: str, ttl: int | None = None) -> str:
     return f"{body}.{_sign(body)}"
 
 
-def decode_token(token: str) -> dict | None:
+def decode_token(token: str) -> Optional[dict]:
     """Return the token payload if the signature is valid and it hasn't expired."""
     try:
         body, sig = token.split(".", 1)
@@ -112,7 +113,7 @@ def _unauthorized(detail: str) -> HTTPException:
 
 
 def get_current_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ) -> dict:
     """Resolve the authenticated user from the ``Authorization: Bearer`` header.
 
@@ -128,3 +129,19 @@ def get_current_user(
     if user is None:
         raise _unauthorized("User no longer exists")
     return user
+
+_bearer_optional = HTTPBearer(auto_error=False)
+
+async def get_current_user_optional(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_optional),
+) -> Optional[dict]:
+    if creds is None or not creds.credentials:
+        return None
+    try:
+        payload = decode_token(creds.credentials)
+        if payload is None:
+            return None
+        user = db.get_user_by_id(payload["sub"])
+        return user
+    except Exception:
+        return None
