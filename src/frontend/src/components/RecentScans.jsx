@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import ScanModal from './ScanModal';
+import { apiFetch } from '../utils/api';
+
 
 export default function RecentScans({ refreshKey }) {
     const [scans, setScans] = useState([]);
@@ -9,7 +11,7 @@ export default function RecentScans({ refreshKey }) {
     const loadScans = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/reports');
+            const res = await apiFetch('/api/reports');
             if (res.ok) {
                 const data = await res.json();
                 setScans(data);

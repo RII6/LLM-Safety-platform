@@ -3,14 +3,17 @@
 .status-warning { color: var(--amber) !important; }
 
 .headline-badge.status-danger {
+    color: #fff !important;
     background: rgba(248, 113, 113, 0.1);
     border: 1px solid rgba(248, 113, 113, 0.2);
 }
 .headline-badge.status-success {
+    color: #fff !important;
     background: rgba(52, 211, 153, 0.1);
     border: 1px solid rgba(52, 211, 153, 0.2);
 }
 .headline-badge.status-warning {
+    color: #fff !important;
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid rgba(251, 191, 36, 0.2);
 }

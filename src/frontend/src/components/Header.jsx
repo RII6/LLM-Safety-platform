@@ -1,15 +1,18 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 
-const Header = () => {
+const Header = ({ toggleMenu }) => {
+    const { user, isAuthenticated } = useAuth();
+
     return (
         <header>
             <div className="header-top">
-                <div className="logo-area">
-                    <span className="logo-icon" title={import.meta.env.VITE_BUILD_INFO || "Local Build"}>🛡️</span>
-                    <h1>Unified LLM Safety Platform</h1>
-                </div>
-                <div className="user-profile">
-                    <span className="user-icon">👤</span> User Profile
+                <div className="header-left">
+                    <button className="menu-button" onClick={toggleMenu}>☰</button>
+                    <div className="logo-area">
+                        <span className="logo-icon">🛡️</span>
+                        <h1>Unified LLM Safety Platform</h1>
+                    </div>
                 </div>
             </div>
         </header>
