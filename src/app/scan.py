@@ -1,3 +1,4 @@
+"""Validate a HF repo, run the scanner once, cache the report by weight content."""
 import gc
 import hashlib
 import json
@@ -43,9 +44,12 @@ def _read_prompts(path):
         return [json.loads(line)["prompt"] for line in f if line.strip()]
 
 
-def _load_corpus():
-    harmful = _read_prompts(config.CORPUS / "harmful.jsonl")[: config.SAMPLE]
-    benign = _read_prompts(config.CORPUS / "benign.jsonl")[: config.SAMPLE]
+def _load_corpus(sample=None):
+    """Load harmful and benign prompts, limited to *sample* (or config.SAMPLE if None)."""
+    if sample is None:
+        sample = config.SAMPLE
+    harmful = _read_prompts(config.CORPUS / "harmful.jsonl")[:sample]
+    benign = _read_prompts(config.CORPUS / "benign.jsonl")[:sample]
     return harmful, benign
 
 
@@ -172,12 +176,12 @@ def _oid(sibling):
 
 
 def _cache_key(info, gen=None, sample=None):
+    effective_sample = sample if sample is not None else config.SAMPLE
     parts = sorted(
         f"{s.rfilename}:{_oid(s)}"
         for s in info.siblings
         if s.rfilename.endswith(_WEIGHT_EXT)
     )
-    effective_sample = sample if sample is not None else config.SAMPLE
     raw = "|".join(parts) + f"|sample={effective_sample}|dtype={config.DTYPE}"
     if gen and (gen.get("harmful") or gen.get("benign")):
         blob = json.dumps(gen, ensure_ascii=False, sort_keys=True)
@@ -198,7 +202,7 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
 
     _log(f"[DEBUG] Starting scan for {repo}... loading model and running core benchmarks (this may take a few minutes).")
 
-    harmful, benign = _load_corpus()
+    harmful, benign = _load_corpus(sample=sample)
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
 
