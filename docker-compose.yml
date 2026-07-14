@@ -30,7 +30,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/aisafety
       - SCAN_DEVICE=cpu
-    read_only: true
     tmpfs:
       - /tmp
       - /app/reports
