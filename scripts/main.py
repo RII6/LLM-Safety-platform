@@ -4,26 +4,15 @@ import json
 import time
 import sys
 from pathlib import Path
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.scanner import Model, pick_device, empty_cache
-from src.scanner.modules import (
-    safety_margin, 
-    refusal_direction, 
-    verdict, 
-    obfuscation, 
-    sampling_stability, 
-    prompt_injection, 
-    gcg_adversarial,
-    memory_extraction   # ← НОВОЕ
-)
+from src.scanner.modules import safety_margin, refusal_direction, verdict, obfuscation, sampling_stability, prompt_injection, gcg_adversarial
 
 from src.scanner.modules.obfuscation import ObfuscationConfig
 from src.scanner.modules.sampling_stability import SamplingStabilityConfig
-from src.scanner.modules.prompt_injection import PromptInjectionConfig
+from src.scanner.modules.prompt_injection import PromptInjectionConfig   # ← Новый модуль
 from src.scanner.modules.gcg_adversarial import GCGAdversarialConfig
-from src.scanner.modules.memory_extraction import MemoryExtractionConfig
 
 
 def load(path: str, n: int = 0):
@@ -38,14 +27,14 @@ ap.add_argument("--sample", type=int, default=0,
                 help="per-class prompt cap for fast dev runs (0 = full corpus)")
 ap.add_argument("--device", default=None,
                 help="cuda / mps / cpu (default: auto-detect)")
-
-# Флаги модулей
-ap.add_argument("--obfuscation", action="store_true", help="run obfuscation attack battery")
-ap.add_argument("--sampling", action="store_true", help="run sampling stability analysis")
-ap.add_argument("--injection", action="store_true", help="run prompt injection detection")
-ap.add_argument("--gcg", action="store_true", help="run GCG adversarial suffix attack")
-ap.add_argument("--memory-extraction", action="store_true", help="run memory extraction attack (PII leakage)")  # ← НОВОЕ
-
+ap.add_argument("--obfuscation", action="store_true",
+                help="run obfuscation attack battery")
+ap.add_argument("--sampling", action="store_true",
+                help="run sampling stability analysis")
+ap.add_argument("--injection", action="store_true",
+                help="run prompt injection detection (one + multi-turn)")  # ← Новый флаг
+ap.add_argument("--gcg", action="store_true",
+                help="run GCG adversarial suffix attack battery")
 ap.add_argument("--config", default="src/configs/general.yaml",
                 help="path to YAML config (default: src/configs/general.yaml)")
 
@@ -71,14 +60,21 @@ for ckpt in CHECKPOINTS:
     print(f"  loaded in {time.time() - t0:.1f}s", flush=True)
 
     # === Core modules ===
+    t0 = time.time()
     margin = safety_margin.run(model, harmful, benign)
-    direction = refusal_direction.run(model, harmful, benign)
+    print(f"  safety_margin done in {time.time() - t0:.1f}s", flush=True)
 
-    # Prompt injection
+    t0 = time.time()
+    direction = refusal_direction.run(model, harmful, benign)
+    print(f"  refusal_direction done in {time.time() - t0:.1f}s", flush=True)
+
+    # Prompt injection feeds the verdict, so run it before computing one.
     inj_result = None
     if args.injection:
         inj_cfg = PromptInjectionConfig.from_yaml(args.config)
+        t0 = time.time()
         inj_result = prompt_injection.run(model, harmful, config=inj_cfg)
+        print(f"  prompt_injection done in {time.time() - t0:.1f}s", flush=True)
 
     report = verdict.compute(margin, direction, inj_result)
 
@@ -91,24 +87,22 @@ for ckpt in CHECKPOINTS:
     # === Additional modules ===
     if args.sampling:
         ss_cfg = SamplingStabilityConfig.from_yaml(args.config)
-        ss_result = sampling_stability.from_margins(margin, config=ss_cfg)  # или .run если изменилось
+        ss_result = sampling_stability.from_margins(margin, config=ss_cfg)
         print("[sampling_stability]", json.dumps(ss_result["summary"], indent=2), flush=True)
 
     if args.obfuscation:
         obf_cfg = ObfuscationConfig.from_yaml(args.config)
+        t0 = time.time()
         obf_result = obfuscation.run(model, harmful, config=obf_cfg)
+        print(f"  obfuscation done in {time.time() - t0:.1f}s", flush=True)
         print("[obfuscation]      ", json.dumps(obf_result["summary"], indent=2), flush=True)
 
     if args.gcg:
         gcg_cfg = GCGAdversarialConfig.from_yaml(args.config)
+        t0 = time.time()
         gcg_result = gcg_adversarial.run(model, harmful, config=gcg_cfg)
+        print(f"  gcg_adversarial done in {time.time() - t0:.1f}s", flush=True)
         print("[gcg_adversarial]  ", json.dumps(gcg_result["summary"], indent=2), flush=True)
-
-    # === Memory Extraction ===
-    if args.memory_extraction:                                 # ← НОВОЕ
-        mem_cfg = MemoryExtractionConfig.from_yaml(args.config)
-        mem_result = memory_extraction.run(model, config=mem_cfg)
-        print("[memory_extraction]", json.dumps(mem_result.get("summary", {}), indent=2), flush=True)
 
     print(flush=True)
 
