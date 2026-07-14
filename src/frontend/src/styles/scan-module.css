@@ -92,3 +92,9 @@
     color: var(--gray);
     border: 1px solid rgba(148, 163, 184, 0.15);
 }
+
+.status-badge.api {
+    background: rgba(251, 191, 36, 0.1);
+    color: var(--amber);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+}

@@ -2,6 +2,7 @@
 import gc
 import hashlib
 import json
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -22,6 +23,8 @@ _api = HfApi()
 _lock = threading.Lock()
 
 _WEIGHT_EXT = (".safetensors", ".bin")
+_GEN_CLASSES = {"harmful", "benign", "both"}
+_GEN_PROVIDERS = {"groq", "google"}
 
 
 class ScanError(Exception):
@@ -42,25 +45,69 @@ def _load_corpus():
     return harmful, benign
 
 
-def _generate_for_class(cls):
+def _safe_cache_part(value):
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value or "default")[:80]
+
+
+def _generation_settings(generation=None):
+    if generation is None:
+        settings = {
+            "n": config.GEN_N,
+            "provider": config.GEN_PROVIDER,
+            "model": config.GEN_MODEL,
+            "seed": config.GEN_SEED,
+            "class": config.GEN_CLASS,
+        }
+        return settings, False
+
+    enabled = bool(generation.get("enabled", False))
+    settings = {
+        "n": int(generation.get("n", 0)) if enabled else 0,
+        "provider": str(generation.get("provider") or config.GEN_PROVIDER).strip().lower(),
+        "model": generation.get("model") or None,
+        "seed": int(generation.get("seed", config.GEN_SEED)),
+        "class": str(generation.get("class") or config.GEN_CLASS).strip().lower(),
+    }
+    if settings["model"] is not None:
+        settings["model"] = str(settings["model"]).strip() or None
+    return settings, enabled and settings["n"] > 0
+
+
+def _validate_generation(settings):
+    if settings["n"] < 0:
+        raise ScanError(400, "Generation count must be non-negative.")
+    if settings["provider"] not in _GEN_PROVIDERS:
+        raise ScanError(400, "Generation provider must be one of: groq, google.")
+    if settings["class"] not in _GEN_CLASSES:
+        raise ScanError(400, "Generation class must be one of: harmful, benign, both.")
+
+
+def _generate_for_class(cls, settings, strict=False):
     """Return GEN_N fresh prompts for *cls*, cached on disk by provider/class/n/seed."""
     config.GEN_CACHE.mkdir(parents=True, exist_ok=True)
-    cache_file = config.GEN_CACHE / f"{config.GEN_PROVIDER}_{cls}_n{config.GEN_N}_seed{config.GEN_SEED}.jsonl"
+    provider = settings["provider"]
+    model = settings["model"]
+    n = settings["n"]
+    seed = settings["seed"]
+    model_key = _safe_cache_part(model)
+    cache_file = config.GEN_CACHE / f"{provider}_{model_key}_{cls}_n{n}_seed{seed}.jsonl"
     if cache_file.exists():
         return _read_prompts(cache_file)
 
     try:
-        from generate import generate_variants
+        from scripts.generate import generate_variants
 
         seeds = _read_prompts(config.CORPUS / f"{cls}.jsonl")
         fresh = generate_variants(
             seeds,
-            n=config.GEN_N,
-            provider=config.GEN_PROVIDER,
-            model=config.GEN_MODEL,
-            seed=config.GEN_SEED,
+            n=n,
+            provider=provider,
+            model=model,
+            seed=seed,
         )
     except Exception as e:
+        if strict:
+            raise ScanError(400, f"Dynamic generation failed for '{cls}': {e}")
         print(f"[scan] dynamic generation for '{cls}' failed: {e}", flush=True)
         return []
 
@@ -71,13 +118,14 @@ def _generate_for_class(cls):
     return fresh
 
 
-def _generate_dynamic():
-    if config.GEN_N <= 0:
+def _generate_dynamic(settings, strict=False):
+    _validate_generation(settings)
+    if settings["n"] <= 0:
         return {"harmful": [], "benign": []}
-    classes = ["harmful", "benign"] if config.GEN_CLASS == "both" else [config.GEN_CLASS]
+    classes = ["harmful", "benign"] if settings["class"] == "both" else [settings["class"]]
     out = {"harmful": [], "benign": []}
     for cls in classes:
-        out[cls] = _generate_for_class(cls)
+        out[cls] = _generate_for_class(cls, settings, strict=strict)
     return out
 
 
@@ -139,7 +187,7 @@ def _merge(static, generated):
     return static + extra
 
 
-def _run_scan(repo, params, weight_bytes, gen, modules):
+def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings):
     harmful, benign = _load_corpus()
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
@@ -207,7 +255,15 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
         "sample": config.SAMPLE,
         "device": config.DEVICE,
         "dtype": str(config.DTYPE).replace("torch.", ""),
-        "generated": {"harmful": len(gen.get("harmful", [])), "benign": len(gen.get("benign", []))},
+        "generated": {
+            "harmful": len(gen.get("harmful", [])),
+            "benign": len(gen.get("benign", [])),
+            "requested_per_class": generation_settings["n"],
+            "provider": generation_settings["provider"],
+            "model": generation_settings["model"],
+            "class": generation_settings["class"],
+            "seed": generation_settings["seed"],
+        },
         "elapsed_s": round(time.time() - t0, 1),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -217,7 +273,7 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
     gcg=gcg_result)
 
 
-def scan(repo, force=False, modules=None, user_id=None):
+def scan(repo, force=False, modules=None, user_id=None, generation=None):
     if modules is None:
         modules = ["general"]
 
@@ -227,7 +283,8 @@ def scan(repo, force=False, modules=None, user_id=None):
 
     info = _model_info(repo)
     params, weight_bytes = _check_size(info)
-    gen = _generate_dynamic()
+    generation_settings, strict_generation = _generation_settings(generation)
+    gen = _generate_dynamic(generation_settings, strict=strict_generation)
     key = _cache_key(info, gen)
 
     if not force:
@@ -241,7 +298,7 @@ def scan(repo, force=False, modules=None, user_id=None):
     if not _lock.acquire(blocking=False):
         raise ScanError(429, "A scan is already running. Try again in a moment.")
     try:
-        result = _run_scan(repo, params, weight_bytes, gen, modules)
+        result = _run_scan(repo, params, weight_bytes, gen, modules, generation_settings)
     finally:
         _lock.release()
 
