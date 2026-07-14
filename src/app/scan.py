@@ -36,7 +36,9 @@ def _read_prompts(path):
         return [json.loads(line)["prompt"] for line in f if line.strip()]
 
 
-def _load_corpus():
+def _load_corpus(sample=None):
+    if sample is None:
+        sample = config.SAMPLE
     harmful = _read_prompts(config.CORPUS / "harmful.jsonl")[: config.SAMPLE]
     benign = _read_prompts(config.CORPUS / "benign.jsonl")[: config.SAMPLE]
     return harmful, benign
@@ -122,7 +124,9 @@ def _oid(sibling):
     return getattr(sibling, "blob_id", None) or ""
 
 
-def _cache_key(info, gen=None):
+def _cache_key(info, gen=None, sample=None):
+    if sample is None:
+        sample = config.SAMPLE
     parts = sorted(
         f"{s.rfilename}:{_oid(s)}" for s in info.siblings if s.rfilename.endswith(_WEIGHT_EXT)
     )
@@ -139,7 +143,7 @@ def _merge(static, generated):
     return static + extra
 
 
-def _run_scan(repo, params, weight_bytes, gen, modules):
+def _run_scan(repo, params, weight_bytes, gen, modules, sample=None):
     harmful, benign = _load_corpus()
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
@@ -210,6 +214,7 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
         "generated": {"harmful": len(gen.get("harmful", [])), "benign": len(gen.get("benign", []))},
         "elapsed_s": round(time.time() - t0, 1),
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "sample": sample if sample is not None else config.SAMPLE,
     }
 
     return explain.build(repo, margin, direction, report, meta,
@@ -217,7 +222,7 @@ def _run_scan(repo, params, weight_bytes, gen, modules):
     gcg=gcg_result)
 
 
-def scan(repo, force=False, modules=None, user_id=None):
+def scan(repo, force=False, modules=None, user_id=None, sample=None):
     if modules is None:
         modules = ["general"]
 
@@ -228,7 +233,7 @@ def scan(repo, force=False, modules=None, user_id=None):
     info = _model_info(repo)
     params, weight_bytes = _check_size(info)
     gen = _generate_dynamic()
-    key = _cache_key(info, gen)
+    key = _cache_key(info, gen, sample=sample)
 
     if not force:
         cached = db.get_cached(key)
@@ -241,7 +246,7 @@ def scan(repo, force=False, modules=None, user_id=None):
     if not _lock.acquire(blocking=False):
         raise ScanError(429, "A scan is already running. Try again in a moment.")
     try:
-        result = _run_scan(repo, params, weight_bytes, gen, modules)
+        result = _run_scan(repo, params, weight_bytes, gen, modules, sample=sample)
     finally:
         _lock.release()
 

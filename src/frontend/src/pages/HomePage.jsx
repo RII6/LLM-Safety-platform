@@ -19,6 +19,8 @@ export default function HomePage() {
 
     const [refreshKey, setRefreshKey] = useState(0);
 
+    const [sample, setSample] = useState(25);
+
     let audioCtx = null;
 
     const ensureAudioContext = async () => {
@@ -107,14 +109,22 @@ export default function HomePage() {
                     repo: trimmedRepo,
                     force: true,
                     modules: selectedModules,
+                    sample: parseInt(sample, 10),  // <-- добавляем sample
                 }),
             });
 
             const data = await res.json();
 
             if (!res.ok) {
+                let errorMessage = data.error || `Request failed (${res.status}).`;
+                if (res.status === 422 && data.detail) {
+                    const sampleError = data.detail.find(d => d.loc.includes('sample'));
+                    if (sampleError) {
+                        errorMessage = 'Sample size must be between 1 and 200.';
+                    }
+                }
                 setStatus({
-                    text: data.error || `Request failed (${res.status}).`,
+                    text: errorMessage,
                     isError: true,
                     visible: true,
                 });
@@ -152,6 +162,8 @@ export default function HomePage() {
                 setScanSampling={setScanSampling}
                 scanGCG={scanGCG}
                 setScanGCG={setScanGCG}
+                sample={sample}
+                setSample={setSample}
             />
 
             <StatusDisplay

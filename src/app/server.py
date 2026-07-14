@@ -73,12 +73,18 @@ class AuthResponse(BaseModel):
 
 # ── scan models ─────────────────────────────────────────────────────────────────
 
-
 class ScanRequest(BaseModel):
     repo: str
     force: bool = False
     modules: list[str] = ["general"]
+    sample: Optional[int] = None
 
+    @field_validator('sample')
+    @classmethod
+    def validate_sample(cls, v):
+        if v is not None and (v < 1 or v > 200):
+            raise ValueError('Sample size must be between 1 and 200')
+        return v
 
 # ── auth routes ─────────────────────────────────────────────────────────────────
 
@@ -118,7 +124,13 @@ def health():
 def run_scan(req: ScanRequest, user: Optional[dict] = Depends(auth.get_current_user_optional)):
     user_id = user["id"] if user else None
     try:
-        return scan(req.repo, force=req.force, modules=req.modules, user_id=user_id)
+        return scan(
+            req.repo,
+            force=req.force,
+            modules=req.modules,
+            user_id=user_id,
+            sample=req.sample
+        )
     except ScanError as e:
         return JSONResponse(status_code=e.status, content={"error": e.message})
 
