@@ -150,13 +150,22 @@ _MAX_JOBS = 200
 
 def _set_job(job_id: str, value: dict) -> None:
     with _JOBS_LOCK:
-        _JOBS[job_id] = value
+        if job_id not in _JOBS:
+            _JOBS[job_id] = {}
+        _JOBS[job_id].update(value)
         if len(_JOBS) > _MAX_JOBS:  # bound memory: drop oldest
             for k in list(_JOBS)[: len(_JOBS) - _MAX_JOBS]:
                 _JOBS.pop(k, None)
 
 
 def _run_job(job_id: str, repo: str, force: bool, modules: list, user_id, sample=None, generation=None) -> None:
+    def log_cb(msg):
+        with _JOBS_LOCK:
+            if job_id in _JOBS:
+                if "logs" not in _JOBS[job_id]:
+                    _JOBS[job_id]["logs"] = []
+                _JOBS[job_id]["logs"].append(msg)
+
     try:
         result = scan(
             repo,
@@ -165,6 +174,7 @@ def _run_job(job_id: str, repo: str, force: bool, modules: list, user_id, sample
             user_id=user_id,
             sample=sample,
             generation=generation,
+            log_cb=log_cb,
         )
         _set_job(job_id, {"status": "done", "result": result})
     except ScanError as e:
@@ -183,7 +193,7 @@ def run_scan(req: ScanRequest, user: Optional[dict] = Depends(auth.get_current_u
     user_id = user["id"] if user else None
     generation = req.generation.model_dump(by_alias=True) if req.generation else None
     job_id = uuid.uuid4().hex
-    _set_job(job_id, {"status": "running"})
+    _set_job(job_id, {"status": "running", "logs": []})
     threading.Thread(
         target=_run_job,
         args=(job_id, req.repo, req.force, req.modules, user_id, req.sample, generation),

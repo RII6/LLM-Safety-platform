@@ -85,7 +85,7 @@ def _validate_generation(settings):
         raise ScanError(400, "Generation class must be one of: harmful, benign, both.")
 
 
-def _generate_for_class(cls, settings, strict=False):
+def _generate_for_class(cls, settings, strict=False, log_cb=None):
     """Return GEN_N fresh prompts for *cls*, cached on disk by provider/class/n/seed."""
     config.GEN_CACHE.mkdir(parents=True, exist_ok=True)
     provider = settings["provider"]
@@ -111,7 +111,9 @@ def _generate_for_class(cls, settings, strict=False):
     except Exception as e:
         if strict:
             raise ScanError(400, f"Dynamic generation failed for '{cls}': {e}")
-        print(f"[scan] dynamic generation for '{cls}' failed: {e}", flush=True)
+        msg = f"[scan] dynamic generation for '{cls}' failed: {e}"
+        if log_cb: log_cb(msg)
+        print(msg, flush=True)
         return []
 
     cache_file.write_text(
@@ -121,14 +123,14 @@ def _generate_for_class(cls, settings, strict=False):
     return fresh
 
 
-def _generate_dynamic(settings, strict=False):
+def _generate_dynamic(settings, strict=False, log_cb=None):
     _validate_generation(settings)
     if settings["n"] <= 0:
         return {"harmful": [], "benign": []}
     classes = ["harmful", "benign"] if settings["class"] == "both" else [settings["class"]]
     out = {"harmful": [], "benign": []}
     for cls in classes:
-        out[cls] = _generate_for_class(cls, settings, strict=strict)
+        out[cls] = _generate_for_class(cls, settings, strict=strict, log_cb=log_cb)
     return out
 
 
@@ -191,7 +193,11 @@ def _merge(static, generated):
     return static + extra
 
 
-def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=None):
+def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=None, log_cb=None):
+    def _log(msg):
+        if log_cb: log_cb(msg)
+        print(msg, flush=True)
+
     harmful, benign = _load_corpus()
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
@@ -206,17 +212,18 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
         # Prompt Injection
         injection_result = None
         if "prompt_injections" in modules:
-            print("[DEBUG] Running prompt_injection module...", flush=True)
+            _log("[DEBUG] Running prompt_injection module...")
             try:
                 inj_cfg = PromptInjectionConfig.from_yaml()
                 injection_result = run_injection(model, harmful, config=inj_cfg)
-                print("[DEBUG] prompt_injection completed", flush=True)
+                _log("[DEBUG] prompt_injection completed")
             except Exception as e:
-                print(f"[ERROR] prompt_injection failed: {e}", flush=True)
+                _log(f"[ERROR] prompt_injection failed: {e}")
 
         # Obfuscation
         obfuscation_result = None
         if "obfuscation" in modules:
+            _log("[DEBUG] Running obfuscation module...")
             try:
                 obfuscation_result = obfuscation.run(
                     model, harmful,
@@ -224,12 +231,14 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
                         str(config.ROOT / "configs" / "general.yaml")
                     )
                 )
+                _log("[DEBUG] obfuscation completed")
             except Exception as e:
-                print(f"[ERROR] obfuscation failed: {e}", flush=True)
+                _log(f"[ERROR] obfuscation failed: {e}")
 
         # Sampling Stability
         sampling_result = None
         if "sampling" in modules:
+            _log("[DEBUG] Running sampling_stability module...")
             try:
                 sampling_result = sampling_stability.run(
                     model, harmful,
@@ -237,13 +246,14 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
                         str(config.ROOT / "configs" / "general.yaml")
                     )
                 )
-                print("[DEBUG] sampling_stability completed", flush=True)
+                _log("[DEBUG] sampling_stability completed")
             except Exception as e:
-                print(f"[ERROR] sampling_stability failed: {e}", flush=True)
+                _log(f"[ERROR] sampling_stability failed: {e}")
 
         # GCG Adversarial
         gcg_result = None
         if "gcg" in modules:
+            _log("[DEBUG] Running gcg_adversarial module...")
             try:
                 gcg_result = gcg_adversarial.run(
                     model, harmful,
@@ -251,22 +261,22 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
                         str(config.ROOT / "configs" / "general.yaml")
                     )
                 )
-                print("[DEBUG] gcg_adversarial completed", flush=True)
+                _log("[DEBUG] gcg_adversarial completed")
             except Exception as e:
-                print(f"[ERROR] gcg_adversarial failed: {e}", flush=True)
+                _log(f"[ERROR] gcg_adversarial failed: {e}")
 
         # === MEMORY EXTRACTION ===
         memory_result = None
         if "memory_extraction" in modules:
-            print("[DEBUG] Running memory_extraction module...", flush=True)
+            _log("[DEBUG] Running memory_extraction module...")
             try:
                 mem_cfg = MemoryExtractionConfig.from_yaml(
                     str(config.ROOT / "configs" / "general.yaml")
                 )
                 memory_result = run_memory_extraction(model, config=mem_cfg)
-                print("[DEBUG] memory_extraction completed", flush=True)
+                _log("[DEBUG] memory_extraction completed")
             except Exception as e:
-                print(f"[ERROR] memory_extraction failed: {e}", flush=True)
+                _log(f"[ERROR] memory_extraction failed: {e}")
                 memory_result = None
 
     finally:
@@ -305,7 +315,7 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
     )
 
 
-def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=None):
+def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=None, log_cb=None):
     if modules is None:
         modules = ["general"]
 
@@ -317,7 +327,7 @@ def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=
     params, weight_bytes = _check_size(info)
 
     generation_settings, strict_generation = _generation_settings(generation)
-    gen = _generate_dynamic(generation_settings, strict=strict_generation)
+    gen = _generate_dynamic(generation_settings, strict=strict_generation, log_cb=log_cb)
 
     key = _cache_key(info, gen, sample=sample)
 
@@ -329,11 +339,10 @@ def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=
             cached["from_cache"] = True
             return cached
 
-    if not _lock.acquire(blocking=False):
-        raise ScanError(429, "A scan is already running. Try again in a moment.")
+    _lock.acquire()
 
     try:
-        result = _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=sample)
+        result = _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=sample, log_cb=log_cb)
     finally:
         _lock.release()
 

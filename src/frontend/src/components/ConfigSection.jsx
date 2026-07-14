@@ -18,6 +18,8 @@ const ConfigSection = ({
                            setScanSampling,
                            scanGCG,
                            setScanGCG,
+                           scanLeakage,
+                           setScanLeakage,
                            sample,
                            setSample,
                            generationEnabled,
@@ -157,13 +159,12 @@ const ConfigSection = ({
                     id="m-leakage"
                     title="Memorization Extraction & System Leakage"
                     description="Implements the Carlini et al. (2021) method. Generates domain-specific seed prefixes and triggers beam search using a small reference model (Pythia-70m) to compute memorization scores."
-                    isActive={false}
-                    isDisabled={true}
-                    checked={false}
-                    onChange={() => {}}
+                    isActive={scanLeakage}
+                    checked={scanLeakage}
+                    onChange={setScanLeakage}
                     isOpen={isLeakageOpen}
                     onToggle={() => setIsLeakageOpen(!isLeakageOpen)}
-                    statusBadge={{ label: 'COMING SOON', className: 'soon' }}
+                    statusBadge={{ label: 'LIVE', className: 'live' }}
                 />
 
                 <ScanModuleCard
