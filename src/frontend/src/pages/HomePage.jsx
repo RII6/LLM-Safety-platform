@@ -92,26 +92,57 @@ export default function HomePage() {
         setResult(null);
         setOpenMetrics({});
         setStatus({
-            text: `Scanning <b>${trimmedRepo}</b> — loading the model and probing internal state…`,
+            text: `Scanning ${trimmedRepo} — loading the model and probing internal state… (this can take a few minutes)`,
             isError: false,
             visible: true,
         });
 
-        try {
-            const selectedModules = [];
-            if (scanGeneral) selectedModules.push("general");
-            if (scanInjection) selectedModules.push("prompt_injections");
-            if (scanObfuscation) selectedModules.push("obfuscation");
-            if (scanSampling) selectedModules.push("sampling");
-            if (scanGCG) selectedModules.push("gcg");
+        const selectedModules = [];
+        if (scanGeneral) selectedModules.push("general");
+        if (scanInjection) selectedModules.push("prompt_injections");
+        if (scanObfuscation) selectedModules.push("obfuscation");
+        if (scanSampling) selectedModules.push("sampling");
+        if (scanGCG) selectedModules.push("gcg");
 
-            const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token');
+        const headers = token
+            ? { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
+            : { "Content-Type": "application/json" };
+
+        const fail = (msg) => {
+            setStatus({ text: msg, isError: true, visible: true });
+            setLoading(false);
+        };
+
+        const finish = async (scanResult) => {
+            setStatus({ text: "", isError: false, visible: false });
+            setResult(scanResult);
+            setRefreshKey((prev) => prev + 1);
+            setLoading(false);
+            await playNotificationSound();
+        };
+
+        // The server runs the scan in the background; poll until the verdict is ready.
+        const poll = async (jobId) => {
+            try {
+                const r = await fetch(`/api/scan/status/${jobId}`, { headers });
+                const d = await r.json();
+                if (d.status === "running") {
+                    setTimeout(() => poll(jobId), 3000);
+                } else if (d.status === "done") {
+                    await finish(d.result);
+                } else {
+                    fail(d.error || "Scan failed.");
+                }
+            } catch (err) {
+                fail("Network error: " + err.message);
+            }
+        };
+
+        try {
             const res = await fetch("/api/scan", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": token ? `Bearer ${token}` : "",
-                },
+                headers,
                 body: JSON.stringify({
                     repo: trimmedRepo,
                     force: true,
@@ -127,10 +158,8 @@ export default function HomePage() {
                     },
                 }),
             });
-
             const data = await res.json();
-
-            if (!res.ok) {
+            if (!res.ok || data.error) {
                 let errorMessage = data.error || `Request failed (${res.status}).`;
                 if (res.status === 422 && data.detail) {
                     const sampleError = data.detail.find(d => d.loc.includes('sample'));
@@ -138,25 +167,12 @@ export default function HomePage() {
                         errorMessage = 'Sample size must be between 1 and 200.';
                     }
                 }
-                setStatus({
-                    text: errorMessage,
-                    isError: true,
-                    visible: true,
-                });
-            } else {
-                setStatus({ text: "", isError: false, visible: false });
-                setResult(data);
-                setRefreshKey(prev => prev + 1);
-                await playNotificationSound();
+                fail(errorMessage);
+                return;
             }
+            setTimeout(() => poll(data.job_id), 2000);
         } catch (err) {
-            setStatus({
-                text: "Network error: " + err.message,
-                isError: true,
-                visible: true,
-            });
-        } finally {
-            setLoading(false);
+            fail("Network error: " + err.message);
         }
     };
 
