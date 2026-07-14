@@ -198,17 +198,21 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
         if log_cb: log_cb(msg)
         print(msg, flush=True)
 
+    _log(f"[DEBUG] Starting scan for {repo}... loading model and running core benchmarks (this may take a few minutes).")
+
     harmful, benign = _load_corpus()
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
 
+    _log(f"[INFO] Loading model '{repo}' into memory...")
     t0 = time.time()
     model = Model(repo, device=config.DEVICE, dtype=config.DTYPE)
+    _log(f"[INFO] Model loaded. Running core safety benchmarks (safety_margin + refusal_direction)...")
 
     try:
         margin = safety_margin.run(model, harmful, benign)
         direction = refusal_direction.run(model, harmful, benign)
-
+        _log("[INFO] Core benchmarks complete.")
         # Prompt Injection
         injection_result = None
         if "prompt_injections" in modules:
@@ -316,6 +320,10 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
 
 
 def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=None, log_cb=None):
+    def _log(msg):
+        if log_cb: log_cb(msg)
+        print(msg, flush=True)
+
     if modules is None:
         modules = ["general"]
 
@@ -323,10 +331,14 @@ def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=
     if not repo or repo.count("/") != 1:
         raise ScanError(400, "Enter a repo id like 'owner/model'.")
 
+    _log(f"[INFO] Received scan request for '{repo}'. Fetching model metadata from HuggingFace...")
     info = _model_info(repo)
     params, weight_bytes = _check_size(info)
+    _log(f"[INFO] Model metadata OK. Params: {params/1e6:.0f}M, Weights: {weight_bytes/1e9:.2f}GB. Modules to run: {modules}")
 
     generation_settings, strict_generation = _generation_settings(generation)
+    if strict_generation:
+        _log(f"[INFO] Generating dynamic prompts via {generation_settings['provider']} ({generation_settings['n']} prompts)...")
     gen = _generate_dynamic(generation_settings, strict=strict_generation, log_cb=log_cb)
 
     key = _cache_key(info, gen, sample=sample)
@@ -334,17 +346,21 @@ def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=
     if not force:
         cached = db.get_cached(key)
         if cached is not None:
+            _log(f"[INFO] Cache hit! Returning cached result.")
             if user_id is not None:
                 db.record_user_scan_by_key(user_id, key)
             cached["from_cache"] = True
             return cached
 
+    _log(f"[INFO] No cache hit. Waiting for scan lock (another scan may be running)...")
     _lock.acquire()
+    _log(f"[INFO] Lock acquired. Starting full scan pipeline...")
 
     try:
         result = _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=sample, log_cb=log_cb)
     finally:
         _lock.release()
+        _log(f"[INFO] Scan complete. Lock released.")
 
     scan_id = db.save_scan(repo, key, result)
     result["id"] = scan_id
