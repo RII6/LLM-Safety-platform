@@ -1,4 +1,5 @@
 """Validate a HF repo, run the scanner once, cache the report by weight content."""
+
 import gc
 import hashlib
 import json
@@ -16,6 +17,7 @@ from src.scanner.modules import obfuscation
 from src.scanner.modules import gcg_adversarial
 from src.scanner.modules.prompt_injection import PromptInjectionConfig, run as run_injection
 from src.scanner.modules import sampling_stability
+from src.scanner.modules.memory_extraction import MemoryExtractionConfig, run as run_memory_extraction  # ← НОВОЕ
 
 from . import config, db, explain
 
@@ -61,7 +63,6 @@ def _generation_settings(generation=None):
             "class": config.GEN_CLASS,
         }
         return settings, False
-
     enabled = bool(generation.get("enabled", False))
     settings = {
         "n": int(generation.get("n", 0)) if enabled else 0,
@@ -93,12 +94,12 @@ def _generate_for_class(cls, settings, strict=False):
     seed = settings["seed"]
     model_key = _safe_cache_part(model)
     cache_file = config.GEN_CACHE / f"{provider}_{model_key}_{cls}_n{n}_seed{seed}.jsonl"
+    
     if cache_file.exists():
         return _read_prompts(cache_file)
 
     try:
         from scripts.generate import generate_variants
-
         seeds = _read_prompts(config.CORPUS / f"{cls}.jsonl")
         fresh = generate_variants(
             seeds,
@@ -148,7 +149,6 @@ def _check_size(info):
             f"Model has ~{params / 1e6:.0f}M parameters; the cap is "
             f"{config.MAX_PARAMS / 1e6:.0f}M for this 2 GB VM.",
         )
-
     weight_bytes = sum(
         s.size or 0 for s in info.siblings if s.rfilename.endswith(_WEIGHT_EXT) and s.size
     )
@@ -195,12 +195,15 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
     harmful, benign = _load_corpus()
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
+
     t0 = time.time()
     model = Model(repo, device=config.DEVICE, dtype=config.DTYPE)
+
     try:
         margin = safety_margin.run(model, harmful, benign)
         direction = refusal_direction.run(model, harmful, benign)
 
+        # Prompt Injection
         injection_result = None
         if "prompt_injections" in modules:
             print("[DEBUG] Running prompt_injection module...", flush=True)
@@ -210,15 +213,21 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
                 print("[DEBUG] prompt_injection completed", flush=True)
             except Exception as e:
                 print(f"[ERROR] prompt_injection failed: {e}", flush=True)
-                injection_result = None
 
+        # Obfuscation
         obfuscation_result = None
         if "obfuscation" in modules:
-            obfuscation_result = obfuscation.run(
-                model, harmful,
-                config=obfuscation.ObfuscationConfig.from_yaml(str(config.ROOT / "configs" / "general.yaml"))
-            )
+            try:
+                obfuscation_result = obfuscation.run(
+                    model, harmful,
+                    config=obfuscation.ObfuscationConfig.from_yaml(
+                        str(config.ROOT / "configs" / "general.yaml")
+                    )
+                )
+            except Exception as e:
+                print(f"[ERROR] obfuscation failed: {e}", flush=True)
 
+        # Sampling Stability
         sampling_result = None
         if "sampling" in modules:
             try:
@@ -231,8 +240,8 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
                 print("[DEBUG] sampling_stability completed", flush=True)
             except Exception as e:
                 print(f"[ERROR] sampling_stability failed: {e}", flush=True)
-                sampling_result = None
 
+        # GCG Adversarial
         gcg_result = None
         if "gcg" in modules:
             try:
@@ -245,7 +254,21 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
                 print("[DEBUG] gcg_adversarial completed", flush=True)
             except Exception as e:
                 print(f"[ERROR] gcg_adversarial failed: {e}", flush=True)
-                gcg_result = None
+
+        # === MEMORY EXTRACTION ===
+        memory_result = None
+        if "memory_extraction" in modules:
+            print("[DEBUG] Running memory_extraction module...", flush=True)
+            try:
+                mem_cfg = MemoryExtractionConfig.from_yaml(
+                    str(config.ROOT / "configs" / "general.yaml")
+                )
+                memory_result = run_memory_extraction(model, config=mem_cfg)
+                print("[DEBUG] memory_extraction completed", flush=True)
+            except Exception as e:
+                print(f"[ERROR] memory_extraction failed: {e}", flush=True)
+                memory_result = None
+
     finally:
         del model
         gc.collect()
@@ -272,9 +295,14 @@ def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sam
         "sample": sample if sample is not None else config.SAMPLE,
     }
 
-    return explain.build(repo, margin, direction, report, meta,
-    injection=injection_result, obfuscation=obfuscation_result, sampling=sampling_result,
-    gcg=gcg_result)
+    return explain.build(
+        repo, margin, direction, report, meta,
+        injection=injection_result,
+        obfuscation=obfuscation_result,
+        sampling=sampling_result,
+        gcg=gcg_result,
+        memory=memory_result          # ← НОВОЕ
+    )
 
 
 def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=None):
@@ -287,20 +315,23 @@ def scan(repo, force=False, modules=None, user_id=None, sample=None, generation=
 
     info = _model_info(repo)
     params, weight_bytes = _check_size(info)
+
     generation_settings, strict_generation = _generation_settings(generation)
     gen = _generate_dynamic(generation_settings, strict=strict_generation)
+
     key = _cache_key(info, gen, sample=sample)
 
     if not force:
         cached = db.get_cached(key)
         if cached is not None:
             if user_id is not None:
-                db.record_user_scan_by_key(user_id, key)  # add to this user's history
+                db.record_user_scan_by_key(user_id, key)
             cached["from_cache"] = True
             return cached
 
     if not _lock.acquire(blocking=False):
         raise ScanError(429, "A scan is already running. Try again in a moment.")
+
     try:
         result = _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=sample)
     finally:
