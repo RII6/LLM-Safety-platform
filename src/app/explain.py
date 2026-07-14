@@ -60,7 +60,6 @@ def metric_blocks(margin, direction):
 def _injection_block(injection):
     s = injection.get("summary", {})
     asr = s.get("asr_conditional")
-
     if asr is None:
         return {
             "id": "prompt_injection",
@@ -75,7 +74,6 @@ def _injection_block(injection):
                 "Test a model that exhibits baseline refusal to see meaningful ASR."
             ),
         }
-
     headline = f"ASR = {asr*100:.0f}%"
     fields = {
         "asr_conditional": asr,
@@ -84,7 +82,6 @@ def _injection_block(injection):
         "severity": s.get("severity"),
     }
     fields = {k: v for k, v in fields.items() if v is not None}
-
     return {
         "id": "prompt_injection",
         "title": "Prompt Injection & Multi‑Turn Drift",
@@ -100,10 +97,10 @@ def _injection_block(injection):
         ),
     }
 
+
 def _obfuscation_block(obf_result):
     s = obf_result.get("summary", {})
     worst_rate = s.get("worst_case_bypass_rate")
-
     if worst_rate is None:
         return {
             "id": "obfuscation",
@@ -118,9 +115,7 @@ def _obfuscation_block(obf_result):
                 "Test a model that exhibits baseline refusal to see meaningful bypass rates."
             ),
         }
-
     headline = f"worst_case_bypass_rate = {worst_rate*100:.0f}%"
-
     per_obf = s.get("per_obfuscator", {})
     if per_obf:
         techniques_parts = []
@@ -131,7 +126,6 @@ def _obfuscation_block(obf_result):
         techniques_str = ", ".join(techniques_parts)
     else:
         techniques_str = "No techniques evaluated"
-
     fields = {
         "worst_case_bypass_rate": worst_rate,
         "best_obfuscator": s.get("best_obfuscator"),
@@ -139,7 +133,6 @@ def _obfuscation_block(obf_result):
         "techniques": techniques_str,
     }
     fields = {k: v for k, v in fields.items() if v is not None}
-
     return {
         "id": "obfuscation",
         "title": "Obfuscation Attacks (Base64, Leetspeak, ROT13, etc.)",
@@ -148,6 +141,7 @@ def _obfuscation_block(obf_result):
         "what": "Obfuscation techniques that hide harmful intent.",
         "read": "Higher bypass rate means the model is easily fooled by obfuscation.",
     }
+
 
 def _sampling_block(sampling_result):
     s = sampling_result.get("summary", {})
@@ -202,6 +196,7 @@ def _gcg_block(gcg_result):
         ),
     }
 
+
 def _memory_block(memory):
     if not memory or "summary" not in memory:
         return {
@@ -236,7 +231,9 @@ def _memory_block(memory):
     }
 
 
-def build(repo, margin, direction, report, meta, injection=None, obfuscation=None, sampling=None, gcg=None):
+def build(repo, margin, direction, report, meta,
+          injection=None, obfuscation=None, sampling=None, gcg=None, memory=None):
+    """Build full report for frontend."""
     v = report["summary"]
     result = {
         "repo": repo,
@@ -251,6 +248,7 @@ def build(repo, margin, direction, report, meta, injection=None, obfuscation=Non
         "metrics": metric_blocks(margin, direction),
         "meta": meta,
     }
+
     if injection is not None and isinstance(injection, dict) and "summary" in injection:
         result["metrics"].append(_injection_block(injection))
     if obfuscation is not None:
@@ -259,4 +257,7 @@ def build(repo, margin, direction, report, meta, injection=None, obfuscation=Non
         result["metrics"].append(_sampling_block(sampling))
     if gcg is not None:
         result["metrics"].append(_gcg_block(gcg))
+    if memory is not None:
+        result["metrics"].append(_memory_block(memory))
+
     return result
