@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ConfigSection from "../components/ConfigSection";
 import StatusDisplay from "../components/StatusDisplay";
 import ResultSection from "../components/ResultSection";
@@ -16,26 +16,32 @@ export default function HomePage() {
     const [scanObfuscation, setScanObfuscation] = useState(false);
     const [scanSampling, setScanSampling] = useState(false);
     const [scanGCG, setScanGCG] = useState(false);
-
-    const [refreshKey, setRefreshKey] = useState(0);
-
     const [sample, setSample] = useState(25);
 
-    let audioCtx = null;
+    const [generationEnabled, setGenerationEnabled] = useState(false);
+    const [generationProvider, setGenerationProvider] = useState("groq");
+    const [generationModel, setGenerationModel] = useState("");
+    const [generationClass, setGenerationClass] = useState("harmful");
+    const [generationN, setGenerationN] = useState(5);
+    const [generationSeed, setGenerationSeed] = useState(0);
+
+    const [, setRefreshKey] = useState(0);
+    const audioCtxRef = useRef(null);
 
     const ensureAudioContext = async () => {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!audioCtxRef.current) {
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
         }
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
+        if (audioCtxRef.current.state === 'suspended') {
+            await audioCtxRef.current.resume();
         }
-        return audioCtx;
+        return audioCtxRef.current;
     };
 
     const playNotificationSound = async () => {
         try {
-            const ctx = audioCtx;
+            const ctx = audioCtxRef.current;
+            if (!ctx) return;
             const response = await fetch(notificationSound);
             if (!response.ok) throw new Error('Failed to load audio file');
             const arrayBuffer = await response.arrayBuffer();
@@ -50,7 +56,8 @@ export default function HomePage() {
         } catch (error) {
             console.warn('MP3 playback failed, using synthetic sound:', error);
             try {
-                const ctx = audioCtx;
+                const ctx = audioCtxRef.current;
+                if (!ctx) return;
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.connect(gain);
@@ -109,7 +116,15 @@ export default function HomePage() {
                     repo: trimmedRepo,
                     force: true,
                     modules: selectedModules,
-                    sample: parseInt(sample, 10),  // <-- добавляем sample
+                    sample: parseInt(sample, 10),
+                    generation: {
+                        enabled: generationEnabled,
+                        n: Number(generationN) || 0,
+                        provider: generationProvider,
+                        model: generationModel.trim() || null,
+                        class: generationClass,
+                        seed: Number(generationSeed) || 0,
+                    },
                 }),
             });
 
@@ -164,6 +179,18 @@ export default function HomePage() {
                 setScanGCG={setScanGCG}
                 sample={sample}
                 setSample={setSample}
+                generationEnabled={generationEnabled}
+                setGenerationEnabled={setGenerationEnabled}
+                generationProvider={generationProvider}
+                setGenerationProvider={setGenerationProvider}
+                generationModel={generationModel}
+                setGenerationModel={setGenerationModel}
+                generationClass={generationClass}
+                setGenerationClass={setGenerationClass}
+                generationN={generationN}
+                setGenerationN={setGenerationN}
+                generationSeed={generationSeed}
+                setGenerationSeed={setGenerationSeed}
             />
 
             <StatusDisplay

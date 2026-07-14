@@ -46,3 +46,40 @@
     font-size: 0.8rem;
     color: var(--muted);
 }
+
+.generation-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin: 14px 0 0 25px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.generation-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.generation-controls input,
+.generation-controls select {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 9px 10px;
+    font: inherit;
+}
+
+.generation-controls input:disabled,
+.generation-controls select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}

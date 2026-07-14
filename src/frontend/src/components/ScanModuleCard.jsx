@@ -1,5 +1,3 @@
-import React from 'react';
-
 const ScanModuleCard = ({
                             id,
                             title,
@@ -11,6 +9,7 @@ const ScanModuleCard = ({
                             isOpen,
                             onToggle,
                             statusBadge,
+                            children,
                         }) => {
     return (
         <div className={`scan-module-card ${isActive ? "active" : ""} ${isDisabled ? "disabled" : ""}`}>
@@ -35,9 +34,10 @@ const ScanModuleCard = ({
 
             <div
                 className="collapsible-content"
-                style={{ maxHeight: isOpen ? "300px" : "0px", opacity: isOpen ? 1 : 0 }}
+                style={{ maxHeight: isOpen ? "640px" : "0px", opacity: isOpen ? 1 : 0 }}
             >
                 <p className="card-desc">{description}</p>
+                {children}
             </div>
         </div>
     );

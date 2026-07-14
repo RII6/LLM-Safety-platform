@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import ScanModuleCard from './ScanModuleCard';
 import CustomSelect from './CustomSelect';
 import { modelOptions } from '../constants/modelOptions';
@@ -20,6 +20,18 @@ const ConfigSection = ({
                            setScanGCG,
                            sample,
                            setSample,
+                           generationEnabled,
+                           setGenerationEnabled,
+                           generationProvider,
+                           setGenerationProvider,
+                           generationModel,
+                           setGenerationModel,
+                           generationClass,
+                           setGenerationClass,
+                           generationN,
+                           setGenerationN,
+                           generationSeed,
+                           setGenerationSeed,
                        }) => {
     const [isGeneralOpen, setIsGeneralOpen] = useState(false);
     const [isInjectionOpen, setIsInjectionOpen] = useState(false);
@@ -27,16 +39,14 @@ const ConfigSection = ({
     const [isLeakageOpen, setIsLeakageOpen] = useState(false);
     const [isSamplingOpen, setIsSamplingOpen] = useState(false);
     const [isGCDOpen, setIsGCDOpen] = useState(false);
+    const [isGenerationOpen, setIsGenerationOpen] = useState(false);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [filteredModels, setFilteredModels] = useState(modelOptions);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
-
-    useEffect(() => {
-        setFilteredModels(
-            modelOptions.filter(m => m.toLowerCase().includes(repo.toLowerCase()))
-        );
-    }, [repo]);
+    const filteredModels = useMemo(
+        () => modelOptions.filter(m => m.toLowerCase().includes(repo.toLowerCase())),
+        [repo]
+    );
 
     const handleInputChange = (e) => {
         const value = e.target.value;
@@ -167,6 +177,79 @@ const ConfigSection = ({
                     onToggle={() => setIsGCDOpen(!isGCDOpen)}
                     statusBadge={{ label: 'LIVE', className: 'live' }}
                 />
+
+                <ScanModuleCard
+                    id="m-generation"
+                    title="Dynamic API Test Generation"
+                    description="Calls Groq or Google AI Studio before the scan to generate fresh harmful or benign test prompts, then merges them with the static corpus for this run."
+                    isActive={generationEnabled}
+                    checked={generationEnabled}
+                    onChange={setGenerationEnabled}
+                    isOpen={isGenerationOpen}
+                    onToggle={() => setIsGenerationOpen(!isGenerationOpen)}
+                    statusBadge={{ label: 'API', className: 'api' }}
+                >
+                    <div className="generation-controls">
+                        <label>
+                            Provider
+                            <select
+                                value={generationProvider}
+                                onChange={(e) => setGenerationProvider(e.target.value)}
+                                disabled={!generationEnabled}
+                            >
+                                <option value="groq">Groq</option>
+                                <option value="google">Google AI Studio / Gemma</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            Model
+                            <input
+                                type="text"
+                                value={generationModel}
+                                onChange={(e) => setGenerationModel(e.target.value)}
+                                placeholder={generationProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemma-3-27b-it'}
+                                disabled={!generationEnabled}
+                            />
+                        </label>
+
+                        <label>
+                            Prompts per class
+                            <input
+                                type="number"
+                                min="0"
+                                max="50"
+                                value={generationN}
+                                onChange={(e) => setGenerationN(e.target.value)}
+                                disabled={!generationEnabled}
+                            />
+                        </label>
+
+                        <label>
+                            Class
+                            <select
+                                value={generationClass}
+                                onChange={(e) => setGenerationClass(e.target.value)}
+                                disabled={!generationEnabled}
+                            >
+                                <option value="harmful">Harmful</option>
+                                <option value="benign">Benign</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            Seed
+                            <input
+                                type="number"
+                                min="0"
+                                value={generationSeed}
+                                onChange={(e) => setGenerationSeed(e.target.value)}
+                                disabled={!generationEnabled}
+                            />
+                        </label>
+                    </div>
+                </ScanModuleCard>
             </div>
 
             <form onSubmit={handleFormSubmit}>

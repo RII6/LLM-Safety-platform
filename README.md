@@ -114,7 +114,7 @@ tables are created automatically at startup (alongside `scans`) — no migration
 | POST   | `/api/auth/signup` | —      | `{username, password, email?}` → `{token, user}`      |
 | POST   | `/api/auth/login`  | —      | `{username, password}` → `{token, user}`              |
 | GET    | `/api/auth/me`     | bearer | current user                                          |
-| POST   | `/api/scan`        | bearer | `{repo, force?}` → report (recorded in your history)  |
+| POST   | `/api/scan`        | bearer | `{repo, force?, modules?, generation?}` → report      |
 | GET    | `/api/reports`     | bearer | your scan history                                     |
 
 ```bash
@@ -126,6 +126,20 @@ TOKEN=$(curl -s localhost:8000/api/auth/signup \
 curl -s localhost:8000/api/scan -H "Authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' -d '{"repo":"owner/model"}'
 ```
+
+Dynamic test generation can be enabled per scan. It uses hosted APIs only to
+write extra evaluation prompts; the target model under audit is still the Hugging
+Face repo in `repo`.
+
+```bash
+curl -s localhost:8000/api/scan -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"repo":"owner/model","generation":{"enabled":true,"provider":"groq","n":5,"class":"harmful"}}'
+```
+
+Set `GROQ_API_KEY` for `provider=groq` or `GEMINI_API_KEY` for
+`provider=google` (Gemma default: `gemma-3-27b-it`). Optional generation fields:
+`model`, `seed`, and `class` (`harmful`, `benign`, or `both`).
 
 Auth knobs (env vars): `AUTH_SECRET` (**set this in production** — the token signing
 key; the default is intentionally insecure), `AUTH_TOKEN_TTL` (token lifetime in
