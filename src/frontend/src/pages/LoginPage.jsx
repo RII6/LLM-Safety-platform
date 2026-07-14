@@ -20,7 +20,13 @@ export default function LoginPage() {
             });
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.detail || 'Login failed');
+                let errorMessage = 'Login failed';
+                if (typeof data.detail === 'string') {
+                    errorMessage = data.detail;
+                } else if (Array.isArray(data.detail)) {
+                    errorMessage = data.detail.map(e => e.msg).join(', ');
+                }
+                throw new Error(errorMessage);
             }
             const data = await res.json();
             login(data.token, data.user);
