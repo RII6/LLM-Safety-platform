@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ConfigSection from "../components/ConfigSection";
 import StatusDisplay from "../components/StatusDisplay";
 import ResultSection from "../components/ResultSection";
@@ -15,24 +15,33 @@ export default function HomePage() {
     const [scanInjection, setScanInjection] = useState(false);
     const [scanObfuscation, setScanObfuscation] = useState(false);
     const [scanSampling, setScanSampling] = useState(false);
+    const [scanGCG, setScanGCG] = useState(false);
+    const [sample, setSample] = useState(25);
 
-    const [refreshKey, setRefreshKey] = useState(0);
+    const [generationEnabled, setGenerationEnabled] = useState(false);
+    const [generationProvider, setGenerationProvider] = useState("groq");
+    const [generationModel, setGenerationModel] = useState("");
+    const [generationClass, setGenerationClass] = useState("harmful");
+    const [generationN, setGenerationN] = useState(5);
+    const [generationSeed, setGenerationSeed] = useState(0);
 
-    let audioCtx = null;
+    const [, setRefreshKey] = useState(0);
+    const audioCtxRef = useRef(null);
 
     const ensureAudioContext = async () => {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!audioCtxRef.current) {
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
         }
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
+        if (audioCtxRef.current.state === 'suspended') {
+            await audioCtxRef.current.resume();
         }
-        return audioCtx;
+        return audioCtxRef.current;
     };
 
     const playNotificationSound = async () => {
         try {
-            const ctx = audioCtx;
+            const ctx = audioCtxRef.current;
+            if (!ctx) return;
             const response = await fetch(notificationSound);
             if (!response.ok) throw new Error('Failed to load audio file');
             const arrayBuffer = await response.arrayBuffer();
@@ -47,7 +56,8 @@ export default function HomePage() {
         } catch (error) {
             console.warn('MP3 playback failed, using synthetic sound:', error);
             try {
-                const ctx = audioCtx;
+                const ctx = audioCtxRef.current;
+                if (!ctx) return;
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.connect(gain);
@@ -82,54 +92,87 @@ export default function HomePage() {
         setResult(null);
         setOpenMetrics({});
         setStatus({
-            text: `Scanning <b>${trimmedRepo}</b> — loading the model and probing internal state…`,
+            text: `Scanning ${trimmedRepo} — loading the model and probing internal state… (this can take a few minutes)`,
             isError: false,
             visible: true,
         });
 
-        try {
-            const selectedModules = [];
-            if (scanGeneral) selectedModules.push("general");
-            if (scanInjection) selectedModules.push("prompt_injections");
-            if (scanObfuscation) selectedModules.push("obfuscation");
-            if (scanSampling) selectedModules.push("sampling");
+        const selectedModules = [];
+        if (scanGeneral) selectedModules.push("general");
+        if (scanInjection) selectedModules.push("prompt_injections");
+        if (scanObfuscation) selectedModules.push("obfuscation");
+        if (scanSampling) selectedModules.push("sampling");
+        if (scanGCG) selectedModules.push("gcg");
 
-            const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token');
+        const headers = token
+            ? { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
+            : { "Content-Type": "application/json" };
+
+        const fail = (msg) => {
+            setStatus({ text: msg, isError: true, visible: true });
+            setLoading(false);
+        };
+
+        const finish = async (scanResult) => {
+            setStatus({ text: "", isError: false, visible: false });
+            setResult(scanResult);
+            setRefreshKey((prev) => prev + 1);
+            setLoading(false);
+            await playNotificationSound();
+        };
+
+        // The server runs the scan in the background; poll until the verdict is ready.
+        const poll = async (jobId) => {
+            try {
+                const r = await fetch(`/api/scan/status/${jobId}`, { headers });
+                const d = await r.json();
+                if (d.status === "running") {
+                    setTimeout(() => poll(jobId), 3000);
+                } else if (d.status === "done") {
+                    await finish(d.result);
+                } else {
+                    fail(d.error || "Scan failed.");
+                }
+            } catch (err) {
+                fail("Network error: " + err.message);
+            }
+        };
+
+        try {
             const res = await fetch("/api/scan", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": token ? `Bearer ${token}` : "",
-                },
+                headers,
                 body: JSON.stringify({
                     repo: trimmedRepo,
                     force: true,
                     modules: selectedModules,
+                    sample: parseInt(sample, 10),
+                    generation: {
+                        enabled: generationEnabled,
+                        n: Number(generationN) || 0,
+                        provider: generationProvider,
+                        model: generationModel.trim() || null,
+                        class: generationClass,
+                        seed: Number(generationSeed) || 0,
+                    },
                 }),
             });
-
             const data = await res.json();
-
-            if (!res.ok) {
-                setStatus({
-                    text: data.error || `Request failed (${res.status}).`,
-                    isError: true,
-                    visible: true,
-                });
-            } else {
-                setStatus({ text: "", isError: false, visible: false });
-                setResult(data);
-                setRefreshKey(prev => prev + 1);
-                await playNotificationSound();
+            if (!res.ok || data.error) {
+                let errorMessage = data.error || `Request failed (${res.status}).`;
+                if (res.status === 422 && data.detail) {
+                    const sampleError = data.detail.find(d => d.loc.includes('sample'));
+                    if (sampleError) {
+                        errorMessage = 'Sample size must be between 1 and 200.';
+                    }
+                }
+                fail(errorMessage);
+                return;
             }
+            setTimeout(() => poll(data.job_id), 2000);
         } catch (err) {
-            setStatus({
-                text: "Network error: " + err.message,
-                isError: true,
-                visible: true,
-            });
-        } finally {
-            setLoading(false);
+            fail("Network error: " + err.message);
         }
     };
 
@@ -148,6 +191,22 @@ export default function HomePage() {
                 setScanObfuscation={setScanObfuscation}
                 scanSampling={scanSampling}
                 setScanSampling={setScanSampling}
+                scanGCG={scanGCG}
+                setScanGCG={setScanGCG}
+                sample={sample}
+                setSample={setSample}
+                generationEnabled={generationEnabled}
+                setGenerationEnabled={setGenerationEnabled}
+                generationProvider={generationProvider}
+                setGenerationProvider={setGenerationProvider}
+                generationModel={generationModel}
+                setGenerationModel={setGenerationModel}
+                generationClass={generationClass}
+                setGenerationClass={setGenerationClass}
+                generationN={generationN}
+                setGenerationN={setGenerationN}
+                generationSeed={generationSeed}
+                setGenerationSeed={setGenerationSeed}
             />
 
             <StatusDisplay

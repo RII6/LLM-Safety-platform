@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import MetricDropdown from './MetricDropdown';
 import CompareSelectModal from './CompareSelectModal';
 
 const ResultSection = ({ result, openMetrics, toggleMetric }) => {
-    const navigate = useNavigate();
     const [showCompareModal, setShowCompareModal] = useState(false);
 
     const verdictClass = result.verdict.code === 'danger' ? 'do_not_deploy' : result.verdict.code;
+    const generated = result.meta.generated || {};
+    const generatedCount = (generated.harmful || 0) + (generated.benign || 0);
 
     const downloadJSON = () => {
         const data = {
@@ -67,6 +67,7 @@ const ResultSection = ({ result, openMetrics, toggleMetric }) => {
             <div className="meta">
                 {result.meta.params ? `${(result.meta.params / 1e6).toFixed(0)}M params · ` : ""}
                 {result.meta.sample}/{result.meta.sample} prompts · {result.meta.device}/{result.meta.dtype} · {result.meta.elapsed_s}s
+                {generatedCount > 0 && ` · ${generatedCount} generated prompts`}
             </div>
 
             {showCompareModal && (

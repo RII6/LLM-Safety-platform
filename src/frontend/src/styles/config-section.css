@@ -22,3 +22,64 @@
     gap: 14px;
     margin-bottom: 32px;
 }
+
+.sample-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+}
+.sample-selector label {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+.sample-selector input {
+    margin-top: -10px;
+    width: 80px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+}
+.sample-selector .hint {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.generation-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin: 14px 0 0 25px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.generation-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.generation-controls input,
+.generation-controls select {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 9px 10px;
+    font: inherit;
+}
+
+.generation-controls input:disabled,
+.generation-controls select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
