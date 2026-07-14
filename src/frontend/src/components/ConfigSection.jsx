@@ -18,6 +18,8 @@ const ConfigSection = ({
                            setScanSampling,
                            scanGCG,
                            setScanGCG,
+                           sample,
+                           setSample,
                        }) => {
     const [isGeneralOpen, setIsGeneralOpen] = useState(false);
     const [isInjectionOpen, setIsInjectionOpen] = useState(false);
@@ -169,6 +171,17 @@ const ConfigSection = ({
 
             <form onSubmit={handleFormSubmit}>
                 <div className="target-repo-input">
+                    <div className="sample-selector">
+                        <label htmlFor="sample">Sample size:</label>
+                        <input
+                            id="sample"
+                            type="number"
+                            min="1"
+                            max="200"
+                            value={sample}
+                            onChange={(e) => setSample(Number(e.target.value))}
+                        />
+                    </div>
                     <label htmlFor="repo">Target Model Repository (Hugging Face):</label>
                     <div className="search-box">
                         <CustomSelect

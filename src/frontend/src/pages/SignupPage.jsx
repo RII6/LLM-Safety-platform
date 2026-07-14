@@ -21,7 +21,13 @@ export default function SignupPage() {
             });
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.detail || 'Signup failed');
+                let errorMessage = 'Signup failed';
+                if (typeof data.detail === 'string') {
+                    errorMessage = data.detail;
+                } else if (Array.isArray(data.detail)) {
+                    errorMessage = data.detail.map(e => e.msg).join(', ');
+                }
+                throw new Error(errorMessage);
             }
             const data = await res.json();
             login(data.token, data.user);
