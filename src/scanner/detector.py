@@ -1,4 +1,4 @@
-from future import annotations
+from __future__ import annotations
 
 import argparse
 import json
@@ -16,7 +16,7 @@ DEFAULT_MAX_NEW_TOKENS = 256
 
 class NLIDetector:
 
-    def init(self, threshold: float = DEFAULT_THRESHOLD, model: str = MODEL):
+    def __init__(self, threshold: float = DEFAULT_THRESHOLD, model: str = MODEL):
         self.threshold = threshold
         self.model_name = model
         self._clf = None
@@ -113,7 +113,7 @@ def _evaluate(report: str, threshold: float):
     return comply_flags
 
 
-if name == "main":
+if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", required=True)
     ap.add_argument("--thr", type=float, default=DEFAULT_THRESHOLD)

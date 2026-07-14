@@ -5,7 +5,7 @@ import time
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(file).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.scanner import pick_device, empty_cache
 from src.scanner.modules import (
