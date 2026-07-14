@@ -15,6 +15,7 @@ export default function HomePage() {
     const [scanInjection, setScanInjection] = useState(false);
     const [scanObfuscation, setScanObfuscation] = useState(false);
     const [scanSampling, setScanSampling] = useState(false);
+    const [scanGCG, setScanGCG] = useState(false);
 
     const [refreshKey, setRefreshKey] = useState(0);
 
@@ -93,6 +94,7 @@ export default function HomePage() {
             if (scanInjection) selectedModules.push("prompt_injections");
             if (scanObfuscation) selectedModules.push("obfuscation");
             if (scanSampling) selectedModules.push("sampling");
+            if (scanGCG) selectedModules.push("gcg");
 
             const token = localStorage.getItem('token');
             const res = await fetch("/api/scan", {
@@ -148,6 +150,8 @@ export default function HomePage() {
                 setScanObfuscation={setScanObfuscation}
                 scanSampling={scanSampling}
                 setScanSampling={setScanSampling}
+                scanGCG={scanGCG}
+                setScanGCG={setScanGCG}
             />
 
             <StatusDisplay
