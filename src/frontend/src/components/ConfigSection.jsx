@@ -209,7 +209,7 @@ const ConfigSection = ({
                                 type="text"
                                 value={generationModel}
                                 onChange={(e) => setGenerationModel(e.target.value)}
-                                placeholder={generationProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemma-3-27b-it'}
+                                placeholder={generationProvider === 'groq' ? 'llama3-8b-8192' : 'gemma-3-27b-it'}
                                 disabled={!generationEnabled}
                             />
                         </label>

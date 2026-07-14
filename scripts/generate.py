@@ -23,7 +23,7 @@ _PROVIDERS: dict[str, dict[str, str]] = {
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
         "key_env": "GROQ_API_KEY",
-        "default_model": "llama-3.3-70b-versatile",  # or "gemma2-9b-it"
+        "default_model": "llama3-8b-8192",  # accessible on free tier
     },
     "google": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
