@@ -30,7 +30,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/aisafety
       - SCAN_DEVICE=cpu
-      - GROQ_API_KEY=${GROQ_API_KEY}
     tmpfs:
       - /tmp
       - /app/reports

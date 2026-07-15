@@ -18,8 +18,6 @@ const ConfigSection = ({
                            setScanSampling,
                            scanGCG,
                            setScanGCG,
-                           scanLeakage,
-                           setScanLeakage,
                            sample,
                            setSample,
                            generationEnabled,
@@ -159,12 +157,13 @@ const ConfigSection = ({
                     id="m-leakage"
                     title="Memorization Extraction & System Leakage"
                     description="Implements the Carlini et al. (2021) method. Generates domain-specific seed prefixes and triggers beam search using a small reference model (Pythia-70m) to compute memorization scores."
-                    isActive={scanLeakage}
-                    checked={scanLeakage}
-                    onChange={setScanLeakage}
+                    isActive={false}
+                    isDisabled={true}
+                    checked={false}
+                    onChange={() => {}}
                     isOpen={isLeakageOpen}
                     onToggle={() => setIsLeakageOpen(!isLeakageOpen)}
-                    statusBadge={{ label: 'LIVE', className: 'live' }}
+                    statusBadge={{ label: 'COMING SOON', className: 'soon' }}
                 />
 
                 <ScanModuleCard
@@ -209,7 +208,7 @@ const ConfigSection = ({
                                 type="text"
                                 value={generationModel}
                                 onChange={(e) => setGenerationModel(e.target.value)}
-                                placeholder={generationProvider === 'groq' ? 'llama3-8b-8192' : 'gemma-3-27b-it'}
+                                placeholder={generationProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemma-3-27b-it'}
                                 disabled={!generationEnabled}
                             />
                         </label>

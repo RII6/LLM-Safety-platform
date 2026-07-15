@@ -16,7 +16,6 @@ export default function HomePage() {
     const [scanObfuscation, setScanObfuscation] = useState(false);
     const [scanSampling, setScanSampling] = useState(false);
     const [scanGCG, setScanGCG] = useState(false);
-    const [scanLeakage, setScanLeakage] = useState(false);
     const [sample, setSample] = useState(25);
 
     const [generationEnabled, setGenerationEnabled] = useState(false);
@@ -104,7 +103,6 @@ export default function HomePage() {
         if (scanObfuscation) selectedModules.push("obfuscation");
         if (scanSampling) selectedModules.push("sampling");
         if (scanGCG) selectedModules.push("gcg");
-        if (scanLeakage) selectedModules.push("memory_extraction");
 
         const token = localStorage.getItem('token');
         const headers = token
@@ -125,21 +123,12 @@ export default function HomePage() {
         };
 
         // The server runs the scan in the background; poll until the verdict is ready.
-        let logIndex = 0;
         const poll = async (jobId) => {
             try {
                 const r = await fetch(`/api/scan/status/${jobId}`, { headers });
                 const d = await r.json();
-
-                if (d.logs && d.logs.length > logIndex) {
-                    for (let i = logIndex; i < d.logs.length; i++) {
-                        console.log(`[Backend] ${d.logs[i]}`);
-                    }
-                    logIndex = d.logs.length;
-                }
-
                 if (d.status === "running") {
-                    setTimeout(() => poll(jobId), 1500);
+                    setTimeout(() => poll(jobId), 3000);
                 } else if (d.status === "done") {
                     await finish(d.result);
                 } else {
@@ -204,8 +193,6 @@ export default function HomePage() {
                 setScanSampling={setScanSampling}
                 scanGCG={scanGCG}
                 setScanGCG={setScanGCG}
-                scanLeakage={scanLeakage}
-                setScanLeakage={setScanLeakage}
                 sample={sample}
                 setSample={setSample}
                 generationEnabled={generationEnabled}
