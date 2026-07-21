@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import auth, config, db
 from .scan import ScanError, scan
@@ -15,7 +16,10 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.init_db()  # create the scans, users and user_scans tables if they don't exist yet
+    try:
+        db.init_db()
+    except Exception as e:
+        print(f"[db] init_db failed (non-fatal for health-check): {e}", flush=True)
     if config.AUTH_SECRET == "dev-insecure-change-me":
         print("[auth] WARNING: using the default AUTH_SECRET — set AUTH_SECRET before deploying.", flush=True)
     yield
@@ -73,9 +77,29 @@ class AuthResponse(BaseModel):
 # ── scan models ─────────────────────────────────────────────────────────────────
 
 
+class GenerationRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    enabled: bool = False
+    n: int = Field(default=5, ge=0, le=50)
+    provider: Literal["groq", "google"] = "groq"
+    model: Optional[str] = Field(default=None, max_length=100)
+    seed: int = Field(default=0, ge=0)
+    class_name: Literal["harmful", "benign", "both"] = Field(default="harmful", alias="class")
+
+    @field_validator("model")
+    @classmethod
+    def _normalize_model(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        return v or None
+
+
 class ScanRequest(BaseModel):
     repo: str
     force: bool = False
+    generation: Optional[GenerationRequest] = None
 
 
 # ── auth routes ─────────────────────────────────────────────────────────────────
@@ -115,8 +139,9 @@ def health():
 
 @app.post("/api/scan")
 def run_scan(req: ScanRequest, user: dict = Depends(auth.get_current_user)):
+    generation = req.generation.model_dump(by_alias=True) if req.generation else None
     try:
-        return scan(req.repo, force=req.force, user_id=user["id"])
+        return scan(req.repo, force=req.force, user_id=user["id"], generation=generation)
     except ScanError as e:
         return JSONResponse(status_code=e.status, content={"error": e.message})
 
