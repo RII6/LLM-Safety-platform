@@ -44,8 +44,8 @@ def _read_prompts(path):
 def _load_corpus(sample=None):
     if sample is None:
         sample = config.SAMPLE
-    harmful = _read_prompts(config.CORPUS / "harmful.jsonl")[: config.SAMPLE]
-    benign = _read_prompts(config.CORPUS / "benign.jsonl")[: config.SAMPLE]
+    harmful = _read_prompts(config.CORPUS / "harmful.jsonl")[:sample]
+    benign = _read_prompts(config.CORPUS / "benign.jsonl")[:sample]
     return harmful, benign
 
 
@@ -178,7 +178,7 @@ def _cache_key(info, gen=None, sample=None):
     parts = sorted(
         f"{s.rfilename}:{_oid(s)}" for s in info.siblings if s.rfilename.endswith(_WEIGHT_EXT)
     )
-    raw = "|".join(parts) + f"|sample={config.SAMPLE}|dtype={config.DTYPE}"
+    raw = "|".join(parts) + f"|sample={sample}|dtype={config.DTYPE}"
     if gen and (gen.get("harmful") or gen.get("benign")):
         blob = json.dumps(gen, ensure_ascii=False, sort_keys=True)
         raw += "|gen=" + hashlib.sha256(blob.encode()).hexdigest()[:12]
@@ -192,7 +192,7 @@ def _merge(static, generated):
 
 
 def _run_scan(repo, params, weight_bytes, gen, modules, generation_settings, sample=None):
-    harmful, benign = _load_corpus()
+    harmful, benign = _load_corpus(sample=sample)
     harmful = _merge(harmful, gen.get("harmful", []))
     benign = _merge(benign, gen.get("benign", []))
 

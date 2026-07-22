@@ -39,7 +39,7 @@ const ConfigSection = ({
     const [isLeakageOpen, setIsLeakageOpen] = useState(false);
     const [isSamplingOpen, setIsSamplingOpen] = useState(false);
     const [isGCDOpen, setIsGCDOpen] = useState(false);
-    const [isGenerationOpen, setIsGenerationOpen] = useState(false);
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -178,82 +178,22 @@ const ConfigSection = ({
                     statusBadge={{ label: 'LIVE', className: 'live' }}
                 />
 
-                <ScanModuleCard
-                    id="m-generation"
-                    title="Dynamic API Test Generation"
-                    description="Calls Groq or Google AI Studio before the scan to generate fresh harmful or benign test prompts, then merges them with the static corpus for this run."
-                    isActive={generationEnabled}
-                    checked={generationEnabled}
-                    onChange={setGenerationEnabled}
-                    isOpen={isGenerationOpen}
-                    onToggle={() => setIsGenerationOpen(!isGenerationOpen)}
-                    statusBadge={{ label: 'API', className: 'api' }}
-                >
-                    <div className="generation-controls">
-                        <label>
-                            Provider
-                            <select
-                                value={generationProvider}
-                                onChange={(e) => setGenerationProvider(e.target.value)}
-                                disabled={!generationEnabled}
-                            >
-                                <option value="groq">Groq</option>
-                                <option value="google">Google AI Studio / Gemma</option>
-                            </select>
-                        </label>
-
-                        <label>
-                            Model
-                            <input
-                                type="text"
-                                value={generationModel}
-                                onChange={(e) => setGenerationModel(e.target.value)}
-                                placeholder={generationProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemma-3-27b-it'}
-                                disabled={!generationEnabled}
-                            />
-                        </label>
-
-                        <label>
-                            Prompts per class
-                            <input
-                                type="number"
-                                min="0"
-                                max="50"
-                                value={generationN}
-                                onChange={(e) => setGenerationN(e.target.value)}
-                                disabled={!generationEnabled}
-                            />
-                        </label>
-
-                        <label>
-                            Class
-                            <select
-                                value={generationClass}
-                                onChange={(e) => setGenerationClass(e.target.value)}
-                                disabled={!generationEnabled}
-                            >
-                                <option value="harmful">Harmful</option>
-                                <option value="benign">Benign</option>
-                                <option value="both">Both</option>
-                            </select>
-                        </label>
-
-                        <label>
-                            Seed
-                            <input
-                                type="number"
-                                min="0"
-                                value={generationSeed}
-                                onChange={(e) => setGenerationSeed(e.target.value)}
-                                disabled={!generationEnabled}
-                            />
-                        </label>
-                    </div>
-                </ScanModuleCard>
             </div>
 
-            <form onSubmit={handleFormSubmit}>
-                <div className="target-repo-input">
+            <div className="advanced-settings">
+                <div className="advanced-header" onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}>
+                    <h3>Advanced Settings</h3>
+                    <span className={`arrow-icon ${isAdvancedOpen ? 'rotated' : ''}`}>▼</span>
+                </div>
+                <div
+                    className="advanced-content"
+                    style={{
+                        maxHeight: isAdvancedOpen ? '600px' : '0px',
+                        opacity: isAdvancedOpen ? 1 : 0,
+                        overflow: 'hidden',
+                        transition: 'max-height 0.4s ease, opacity 0.3s ease',
+                    }}
+                >
                     <div className="sample-selector">
                         <label htmlFor="sample">Sample size:</label>
                         <input
@@ -265,6 +205,80 @@ const ConfigSection = ({
                             onChange={(e) => setSample(Number(e.target.value))}
                         />
                     </div>
+
+                    <div className="generation-toggle">
+                        <label>
+                            <input
+                                type="checkbox"
+                                checked={generationEnabled}
+                                onChange={(e) => setGenerationEnabled(e.target.checked)}
+                            />
+                            Generate additional prompts via API
+                        </label>
+                    </div>
+
+                    {generationEnabled && (
+                        <div className="generation-controls">
+                            <label>
+                                Provider
+                                <select
+                                    value={generationProvider}
+                                    onChange={(e) => setGenerationProvider(e.target.value)}
+                                >
+                                    <option value="groq">Groq</option>
+                                    <option value="google">Google AI Studio / Gemma</option>
+                                </select>
+                            </label>
+
+                            <label>
+                                Model
+                                <input
+                                    type="text"
+                                    value={generationModel}
+                                    onChange={(e) => setGenerationModel(e.target.value)}
+                                    placeholder={generationProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemma-3-27b-it'}
+                                />
+                            </label>
+
+                            <label>
+                                Prompts per class
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="50"
+                                    value={generationN}
+                                    onChange={(e) => setGenerationN(Number(e.target.value))}
+                                />
+                            </label>
+
+                            <label>
+                                Class
+                                <select
+                                    value={generationClass}
+                                    onChange={(e) => setGenerationClass(e.target.value)}
+                                >
+                                    <option value="harmful">Harmful</option>
+                                    <option value="benign">Benign</option>
+                                    <option value="both">Both</option>
+                                </select>
+                            </label>
+
+                            <label>
+                                Seed
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={generationSeed}
+                                    onChange={(e) => setGenerationSeed(Number(e.target.value))}
+                                />
+                            </label>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <form onSubmit={handleFormSubmit}>
+                <div className="target-repo-input">
                     <label htmlFor="repo">Target Model Repository (Hugging Face):</label>
                     <div className="search-box">
                         <CustomSelect
