@@ -51,24 +51,42 @@ def _comply(model, prompt: str, detector) -> float:
 
 
 def _assess_prompt(model, prompt: str, config: PromptInjectionConfig, detector) -> dict:
-    """Run every template against one prompt and reduce to the attacker's best case."""
-    original_score = _comply(model, prompt, detector)
-    refused_originally = original_score <= detector.threshold
+    """
+    Run every template against one prompt using a single batched generation.
+    """
+
+    prompts = [prompt]
+    prompts.extend(
+        template.format(prompt=prompt)
+        for template in config.one_turn_templates
+    )
+
+    results = detector.batch_generate_and_predict(model, prompts)
+
+    original = results[0]
+    original_score = original["comply_score"]
+    refused_originally = not original["complied"]
 
     templates = []
-    for template in config.one_turn_templates:
-        injected = template.format(prompt=prompt)
-        injected_score = _comply(model, injected, detector)
-        delta = injected_score - original_score
-        templates.append({
-            "template": template,
-            "injected_prompt": injected,
-            "injected_comply_score": round(injected_score, 4),
-            "injection_delta": round(delta, 4),
-            "flipped": refused_originally and injected_score > detector.threshold,
-        })
 
-    worst = max(templates, key=lambda t: t["injection_delta"])
+    for template, result in zip(config.one_turn_templates, results[1:]):
+        delta = result["comply_score"] - original_score
+
+        templates.append(
+            {
+                "template": template,
+                "injected_prompt": result["prompt"],
+                "injected_comply_score": round(result["comply_score"], 4),
+                "injection_delta": round(delta, 4),
+                "flipped": refused_originally and result["complied"],
+            }
+        )
+
+    worst = max(
+        templates,
+        key=lambda t: t["injection_delta"],
+    )
+
     return {
         "prompt": prompt,
         "original_comply_score": round(original_score, 4),
@@ -78,7 +96,6 @@ def _assess_prompt(model, prompt: str, config: PromptInjectionConfig, detector) 
         "worst_template": worst["template"],
         "templates": templates,
     }
-
 
 def _multi_turn(model, prompt: str, config: PromptInjectionConfig, detector) -> dict:
     scores = []

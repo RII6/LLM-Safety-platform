@@ -29,7 +29,7 @@ services:
       - "80:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/aisafety
-      - SCAN_DEVICE=cpu
+      - SCAN_DEVICE=cuda
     tmpfs:
       - /tmp
       - /app/reports
@@ -38,6 +38,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 volumes:
   pgdata:

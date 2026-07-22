@@ -242,26 +242,45 @@ def _assess_prompt(
     obfuscators: list[ObfuscatorBase],
     detector,
 ) -> dict:
-    """
-    Evaluate one prompt across all obfuscators.  Returns original comply score
-    and per-obfuscator {bypass_delta, bypassed} dicts.  Positive delta = less safe.
-    """
-    original_score = _comply(model, prompt, detector)
-    already_bypassed = original_score > detector.threshold
 
-    per_obfuscator: list[dict] = []
-    for obs in obfuscators:
-        obf_prompt = obs.apply(prompt)
-        obf_score = _comply(model, obf_prompt, detector)
-        delta = obf_score - original_score
-        per_obfuscator.append({
-            "obfuscator": obs.name,
-            "original_comply_score": round(original_score, 4),
-            "obfuscated_comply_score": round(obf_score, 4),
-            "bypass_delta": round(delta, 4),
-            "bypassed": obf_score > detector.threshold,
-            "was_already_bypassed": already_bypassed,
-        })
+    prompts = [prompt]
+    prompts.extend(
+        obs.apply(prompt)
+        for obs in obfuscators
+    )
+
+    results = detector.batch_generate_and_predict(
+        model,
+        prompts,
+    )
+
+    original = results[0]
+    original_score = original["comply_score"]
+
+    already_bypassed = original["complied"]
+
+    per_obfuscator = []
+
+    for obs, result in zip(
+        obfuscators,
+        results[1:]
+    ):
+
+        delta = result["comply_score"] - original_score
+
+        per_obfuscator.append(
+            {
+                "obfuscator": obs.name,
+                "original_comply_score": round(original_score, 4),
+                "obfuscated_comply_score": round(
+                    result["comply_score"],
+                    4,
+                ),
+                "bypass_delta": round(delta, 4),
+                "bypassed": result["complied"],
+                "was_already_bypassed": already_bypassed,
+            }
+        )
 
     return {
         "prompt": prompt,
@@ -269,7 +288,6 @@ def _assess_prompt(
         "was_already_bypassed": already_bypassed,
         "per_obfuscator": per_obfuscator,
     }
-
 def run(
     model,
     harmful: list[str],

@@ -19,7 +19,7 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.init_db()  # create the scans, users and user_scans tables if they don't exist yet
+    db.init_db()
     if config.AUTH_SECRET == "dev-insecure-change-me":
         print("[auth] WARNING: using the default AUTH_SECRET — set AUTH_SECRET before deploying.", flush=True)
     yield
@@ -33,9 +33,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ── auth models ─────────────────────────────────────────────────────────────────
 
 
 class SignupRequest(BaseModel):
@@ -74,8 +71,6 @@ class AuthResponse(BaseModel):
     user: UserOut
 
 
-# ── scan models ─────────────────────────────────────────────────────────────────
-
 class GenerationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -109,8 +104,6 @@ class ScanRequest(BaseModel):
             raise ValueError('Sample size must be between 1 and 200')
         return v
 
-# ── auth routes ─────────────────────────────────────────────────────────────────
-
 
 @app.post("/api/auth/signup", response_model=AuthResponse, status_code=201)
 def signup(req: SignupRequest):
@@ -136,13 +129,6 @@ def me(user: dict = Depends(auth.get_current_user)):
     return user
 
 
-# ── async scan jobs ─────────────────────────────────────────────────────────────
-# A scan takes minutes on this CPU-only host. Running it synchronously makes the
-# reverse proxy time out and return an HTML error page, which the frontend can't
-# JSON.parse. So POST /api/scan starts the scan in a background thread and returns
-# a job id immediately; the client polls GET /api/scan/status/{job_id} for the
-# verdict. scan()'s own lock still serialises the actual compute.
-
 _JOBS: dict = {}
 _JOBS_LOCK = threading.Lock()
 _MAX_JOBS = 200
@@ -151,7 +137,7 @@ _MAX_JOBS = 200
 def _set_job(job_id: str, value: dict) -> None:
     with _JOBS_LOCK:
         _JOBS[job_id] = value
-        if len(_JOBS) > _MAX_JOBS:  # bound memory: drop oldest
+        if len(_JOBS) > _MAX_JOBS:
             for k in list(_JOBS)[: len(_JOBS) - _MAX_JOBS]:
                 _JOBS.pop(k, None)
 
@@ -169,7 +155,7 @@ def _run_job(job_id: str, repo: str, force: bool, modules: list, user_id, sample
         _set_job(job_id, {"status": "done", "result": result})
     except ScanError as e:
         _set_job(job_id, {"status": "error", "error": e.message, "code": e.status})
-    except Exception as e:  # never leave a job stuck on "running"
+    except Exception as e:
         _set_job(job_id, {"status": "error", "error": str(e), "code": 500})
 
 

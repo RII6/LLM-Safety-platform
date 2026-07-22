@@ -2,21 +2,11 @@ from ..detector import get_detector
 from ..metrics import auroc, bootstrap_ci
 
 
-def assess(model, prompt, detector=None):
-    det = detector or get_detector()
-    r = det.generate_and_score(model, prompt)
-    return {
-        "prompt": prompt,
-        "response": r["response"],
-        "comply_score": r["comply_score"],
-        "complied": r["comply"],
-    }
-
-
 def run(model, harmful, benign):
     det = get_detector()
-    h_results = [assess(model, p, det) for p in harmful]
-    b_results = [assess(model, p, det) for p in benign]
+
+    h_results = det.batch_generate_and_score(model, harmful)
+    b_results = det.batch_generate_and_score(model, benign)
 
     h_scores = [r["comply_score"] for r in h_results]
     b_scores = [r["comply_score"] for r in b_results]

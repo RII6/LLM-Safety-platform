@@ -9,14 +9,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.scanner import Model, pick_device, empty_cache
 from src.scanner.modules import (
-    safety_margin, 
-    refusal_direction, 
-    verdict, 
-    obfuscation, 
-    sampling_stability, 
-    prompt_injection, 
+    safety_margin,
+    refusal_direction,
+    verdict,
+    obfuscation,
+    sampling_stability,
+    prompt_injection,
     gcg_adversarial,
-    memory_extraction   # ← НОВОЕ
+    memory_extraction
 )
 
 from src.scanner.modules.obfuscation import ObfuscationConfig
@@ -25,13 +25,10 @@ from src.scanner.modules.prompt_injection import PromptInjectionConfig
 from src.scanner.modules.gcg_adversarial import GCGAdversarialConfig
 from src.scanner.modules.memory_extraction import MemoryExtractionConfig
 
-
 def load(path: str, n: int = 0):
-    """Load prompts from jsonl file."""
     with open(path, encoding="utf-8") as f:
         prompts = [json.loads(line)["prompt"] for line in f if line.strip()]
     return prompts[:n] if n else prompts
-
 
 ap = argparse.ArgumentParser(description="Internal-State LLM Safety Scanner")
 ap.add_argument("--sample", type=int, default=0,
@@ -39,12 +36,11 @@ ap.add_argument("--sample", type=int, default=0,
 ap.add_argument("--device", default=None,
                 help="cuda / mps / cpu (default: auto-detect)")
 
-# Флаги модулей
 ap.add_argument("--obfuscation", action="store_true", help="run obfuscation attack battery")
 ap.add_argument("--sampling", action="store_true", help="run sampling stability analysis")
 ap.add_argument("--injection", action="store_true", help="run prompt injection detection")
 ap.add_argument("--gcg", action="store_true", help="run GCG adversarial suffix attack")
-ap.add_argument("--memory-extraction", action="store_true", help="run memory extraction attack (PII leakage)")  # ← НОВОЕ
+ap.add_argument("--memory-extraction", action="store_true", help="run memory extraction attack (PII leakage)")
 
 ap.add_argument("--config", default="src/configs/general.yaml",
                 help="path to YAML config (default: src/configs/general.yaml)")
@@ -70,11 +66,9 @@ for ckpt in CHECKPOINTS:
     model = Model(ckpt, device)
     print(f"  loaded in {time.time() - t0:.1f}s", flush=True)
 
-    # === Core modules ===
     margin = safety_margin.run(model, harmful, benign)
     direction = refusal_direction.run(model, harmful, benign)
 
-    # Prompt injection
     inj_result = None
     if args.injection:
         inj_cfg = PromptInjectionConfig.from_yaml(args.config)
@@ -88,10 +82,9 @@ for ckpt in CHECKPOINTS:
         print("[prompt_injection] ", json.dumps(inj_result["summary"], indent=2), flush=True)
     print("[verdict]          ", json.dumps(report["summary"], indent=2), flush=True)
 
-    # === Additional modules ===
     if args.sampling:
         ss_cfg = SamplingStabilityConfig.from_yaml(args.config)
-        ss_result = sampling_stability.from_margins(margin, config=ss_cfg)  # или .run если изменилось
+        ss_result = sampling_stability.from_margins(margin, config=ss_cfg)
         print("[sampling_stability]", json.dumps(ss_result["summary"], indent=2), flush=True)
 
     if args.obfuscation:
@@ -104,15 +97,21 @@ for ckpt in CHECKPOINTS:
         gcg_result = gcg_adversarial.run(model, harmful, config=gcg_cfg)
         print("[gcg_adversarial]  ", json.dumps(gcg_result["summary"], indent=2), flush=True)
 
-    # === Memory Extraction ===
-    if args.memory_extraction:                               
+    if args.memory_extraction:
         mem_cfg = MemoryExtractionConfig.from_yaml(args.config)
         mem_result = memory_extraction.run(model, config=mem_cfg)
         print("[memory_extraction]", json.dumps(mem_result.get("summary", {}), indent=2), flush=True)
 
     print(flush=True)
 
-    # Cleanup
+    if hasattr(model, "vllm_engine") and model.vllm_engine is not None:
+        try:
+            from vllm.distributed.parallel_state import destroy_model_parallel
+            destroy_model_parallel()
+        except Exception:
+            pass
+        del model.vllm_engine
+
     del model
     gc.collect()
     empty_cache(device)

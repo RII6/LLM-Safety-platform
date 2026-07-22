@@ -10,78 +10,45 @@ The import surface is unchanged: code keeps using ``config.SAMPLE``,
 """
 import os
 from pathlib import Path
-
 import torch
 
-ROOT = Path(__file__).resolve().parent.parent
-CORPUS = ROOT / "data" / "corpus"
-REPORTS = ROOT.parent / "reports"
+ROOT = Path(__file__).resolve().parent.parent.parent
+CORPUS = ROOT / "src" / "data" / "corpus"
+GEN_CACHE = ROOT / "reports" / "cache"
 
-# Path to the YAML config; override with SCAN_CONFIG if needed.
-_CONFIG_PATH = Path(os.environ.get("SCAN_CONFIG", ROOT / "configs" / "general.yaml"))
+MAX_PARAMS = int(os.getenv("SCAN_MAX_PARAMS", "400000000"))
+MAX_WEIGHT_BYTES = MAX_PARAMS * 4
+SAMPLE = int(os.getenv("SCAN_SAMPLE", "25"))
 
+DEVICE = os.getenv("SCAN_DEVICE")
+if not DEVICE:
+    if torch.cuda.is_available():
+        DEVICE = "cuda"
+    elif torch.backends.mps.is_available():
+        DEVICE = "mps"
+    else:
+        DEVICE = "cpu"
 
-def _load_section(name: str) -> dict:
-    """Return a top-level section of the YAML config, or {} on any problem."""
-    try:
-        import yaml
+_dtype_str = os.getenv("SCAN_DTYPE", "auto" if DEVICE != "cpu" else "float32")
+if _dtype_str == "auto":
+    DTYPE = "auto"
+elif _dtype_str == "bfloat16":
+    DTYPE = torch.bfloat16
+elif _dtype_str == "float16":
+    DTYPE = torch.float16
+else:
+    DTYPE = torch.float32
 
-        with open(_CONFIG_PATH, encoding="utf-8") as f:
-            raw = yaml.safe_load(f) or {}
-        return raw.get(name, {}) or {}
-    except Exception:
-        return {}
+DEMO_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
+GEN_N = 5
+GEN_PROVIDER = "groq"
+GEN_MODEL = None
+GEN_SEED = 42
+GEN_CLASS = "harmful"
 
+AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-insecure-change-me")
+AUTH_TOKEN_TTL = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
+AUTH_PBKDF2_ITERATIONS = int(os.getenv("AUTH_PBKDF2_ITERATIONS", "200000"))
 
-_cfg = _load_section("scanner")
-_gen = _cfg.get("generation", {}) or {}
-
-
-def _resolve(env_key: str, source: dict, key: str, default, cast=str):
-    """Resolve one setting: env var, then YAML value, then default."""
-    if env_key in os.environ:
-        return cast(os.environ[env_key])
-    if source.get(key) is not None:
-        return cast(source[key])
-    return default
-
-
-# ── Scan params ────────────────────────────────────────────────────────────────
-SAMPLE = _resolve("SCAN_SAMPLE", _cfg, "sample", 25, int)
-MAX_PARAMS = _resolve("SCAN_MAX_PARAMS", _cfg, "max_params", 400_000_000, int)
-MAX_WEIGHT_BYTES = _resolve("SCAN_MAX_WEIGHT_BYTES", _cfg, "max_weight_bytes", 1_500_000_000, int)
-DEVICE = _resolve("SCAN_DEVICE", _cfg, "device", "cpu", str)
-
-_DTYPES = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
-DTYPE = _DTYPES[_resolve("SCAN_DTYPE", _cfg, "dtype", "bfloat16", str)]
-
-DEMO_MODEL = _resolve("SCAN_DEMO_MODEL", _cfg, "demo_model", "HuggingFaceTB/SmolLM2-360M-Instruct", str)
-
-# ── PostgreSQL ──────────────────────────────────────────────────────────────────
-DATABASE_URL = _resolve(
-    "DATABASE_URL", _cfg, "database_url", "postgresql://postgres:postgres@localhost:5432/aisafety", str
-)
-
-# ── Auth ────────────────────────────────────────────────────────────────────────
-# Key used to sign session tokens. MUST be overridden in production (set
-# AUTH_SECRET); the default is intentionally obvious so a misconfigured deploy is
-# easy to spot. Token TTL is in seconds; PBKDF2 iterations tune password-hash cost.
-AUTH_SECRET = _resolve("AUTH_SECRET", _cfg, "auth_secret", "dev-insecure-change-me", str)
-AUTH_TOKEN_TTL = _resolve("AUTH_TOKEN_TTL", _cfg, "auth_token_ttl", 86_400, int)
-AUTH_PBKDF2_ITERATIONS = _resolve("AUTH_PBKDF2_ITERATIONS", _cfg, "auth_pbkdf2_iterations", 200_000, int)
-
-# Comma-separated list of allowed CORS origins for a separate frontend (e.g. the
-# Vite dev server). "*" allows any origin; credentials are not used (Bearer token).
-AUTH_CORS_ORIGINS = [
-    o.strip()
-    for o in _resolve("AUTH_CORS_ORIGINS", _cfg, "auth_cors_origins", "*", str).split(",")
-    if o.strip()
-]
-
-# ── Dynamic test-case generation (scan-time corpus augmentation) ────────────────
-GEN_N = _resolve("SCAN_GEN_N", _gen, "n", 0, int)
-GEN_PROVIDER = _resolve("SCAN_GEN_PROVIDER", _gen, "provider", "groq", str)
-GEN_MODEL = _resolve("SCAN_GEN_MODEL", _gen, "model", None, str) or None
-GEN_SEED = _resolve("SCAN_GEN_SEED", _gen, "seed", 0, int)
-GEN_CLASS = _resolve("SCAN_GEN_CLASS", _gen, "class", "harmful", str)
-GEN_CACHE = CORPUS / "generated"
+_origins = os.getenv("AUTH_CORS_ORIGINS", "*")
+AUTH_CORS_ORIGINS = [x.strip() for x in _origins.split(",") if x.strip()]
