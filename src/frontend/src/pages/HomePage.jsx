@@ -16,6 +16,8 @@ export default function HomePage() {
     const [scanObfuscation, setScanObfuscation] = useState(false);
     const [scanSampling, setScanSampling] = useState(false);
     const [scanGCG, setScanGCG] = useState(false);
+    const [scanMemory, setScanMemory] = useState(false);
+
     const [sample, setSample] = useState(25);
 
     const [generationEnabled, setGenerationEnabled] = useState(false);
@@ -103,6 +105,7 @@ export default function HomePage() {
         if (scanObfuscation) selectedModules.push("obfuscation");
         if (scanSampling) selectedModules.push("sampling");
         if (scanGCG) selectedModules.push("gcg");
+        if (scanMemory) selectedModules.push("memory_extraction");
 
         const token = localStorage.getItem('token');
         const headers = token
@@ -122,7 +125,6 @@ export default function HomePage() {
             await playNotificationSound();
         };
 
-        // The server runs the scan in the background; poll until the verdict is ready.
         const poll = async (jobId) => {
             try {
                 const r = await fetch(`/api/scan/status/${jobId}`, { headers });
@@ -195,6 +197,8 @@ export default function HomePage() {
                 setScanGCG={setScanGCG}
                 sample={sample}
                 setSample={setSample}
+                scanMemory={scanMemory}
+                setScanMemory={setScanMemory}
                 generationEnabled={generationEnabled}
                 setGenerationEnabled={setGenerationEnabled}
                 generationProvider={generationProvider}
