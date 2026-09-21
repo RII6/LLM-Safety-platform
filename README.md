@@ -1,5 +1,7 @@
 # Internal-State LLM Safety Scanner
 
+![Screenshot](./screenshot.png)
+
 A deploy-or-not auditor for fine-tuned LLM checkpoints, aimed at the **ML engineer**
 who fine-tuned a model and wants an answer to _"is this safe to ship?"_
 
